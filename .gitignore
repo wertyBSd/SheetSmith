@@ -1,0 +1,19 @@
+# Сборки и превью (генерируется движком)
+out/
+preview/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Веб (M2+)
+node_modules/
+dist/
+.vite/
+
+# Прочее
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,56 @@
+{
+  "_comment_ru": "Пример characters.json. Копируйте файл и правьте под своих героев. Запуск: py char_generator.py --characters characters.example.json --list",
+
+  "_schema_ru": {
+    "materials": {
+      "robe":     "{\"hi\": \"#AABBCC\", \"base\": \"#778899\", \"dark\": \"#445566\", \"spec\": \"#FFFFFF\", \"spec_lam\": 0.84, \"spec_glow\": 0.45}  — три тона села (свет/тон/тень) + необязательный блик",
+      "armor":    "то же, что robe — броня",
+      "skin":     "то же, что robe — кожа",
+      "eye":      "\"#3FE0F0\" — просто цвет (радужка/линза)",
+      "neon":     "\"#00FFFF\" — контурная подсветка",
+      "neon_soft": "\"#0A6E78\" — приглушённый неон для отражений"
+    },
+    "arch": {
+      "head": "hood | visor | monocle | helm | mask | spike",
+      "torso": "taper | box | wide",
+      "hand": "fist | hammer | claw",
+      "foot": "boot | wedge | block",
+      "grip": "wrap (ткань) | plate (броня)",
+      "SHOULDER": "ширина плеч в px",
+      "WAIST": "ширина талии в px",
+      "ARM": "толщина руки в px",
+      "LEG": "толщина ноги в px",
+      "ankle": "0.32..0.70 — насколько нога сужается к стопе (0.7 = почти параллельные)"
+    }
+  },
+
+  "characters": {
+    "cipher": {
+      "_about_ru": "НОВЫЙ персонаж целиком: палитра + архетип. Появится в --list и в ростер-листе.",
+      "materials": {
+        "robe":      {"hi": "#2F6B5E", "base": "#1D463E", "dark": "#0F2620", "spec": null, "spec_lam": 0.5, "spec_glow": 0.1},
+        "armor":     {"hi": "#7C8C74", "base": "#4E5C4A", "dark": "#2C3529", "spec": "#DFFFE8", "spec_lam": 0.86, "spec_glow": 0.5},
+        "skin":      {"hi": "#C8A882", "base": "#9A7C5C", "dark": "#64503C", "spec": null, "spec_lam": 0.55, "spec_glow": 0.2},
+        "eye":       "#7CFFB2",
+        "neon":      "#39FF88",
+        "neon_soft": "#14703C"
+      },
+      "arch": {
+        "head": "mask", "torso": "taper", "hand": "claw", "foot": "wedge",
+        "grip": "wrap", "SHOULDER": 24, "WAIST": 17, "ARM": 5, "LEG": 7, "ankle": 0.36
+      }
+    },
+
+    "wraith": {
+      "_about_ru": "ПЕРЕОПРЕДЕЛЕНИЕ существующего: меняем только неон, пропорции и материалы берём из кода.",
+      "materials": {
+        "neon":      "#B04CFF",
+        "neon_soft": "#4A1280",
+        "eye":       "#E0B0FF"
+      },
+      "arch": {
+        "neon_accent": "не используется движком — пример произвольного поля: лишние ключи в arch игнорируются"
+      }
+    }
+  }
+}
