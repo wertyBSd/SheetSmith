@@ -424,6 +424,26 @@ text file. Add it in `server/export.py`, register it in `write_pack`, and extend
 against the manifest. Generated code is commented in English: it lands in other
 people's repositories.
 
+## License
+
+[PolyForm Shield 1.0.0](LICENSE) — © 2026 Alexey Ryzhkov and SheetSmith
+contributors.
+
+Short version:
+
+* **Use it freely, including in a commercial game you are paid for.**
+* **Fork it, change it, redistribute it**, including inside your own tools.
+* **Do not release a competing character-sprite generator** built on this code.
+* Keep the `Required Notice:` line from `LICENSE` in any copy you distribute.
+
+This is not an OSI open source licence: it binds people who accept it, and it does
+not stop anyone from writing their own generator from scratch. No licence can do
+that — copyright covers expression, not ideas.
+
+Contributions are welcome; a pull request means you accept
+[CLA.md](CLA.md). Both documents are drafts worth having checked by a lawyer if
+this matters to you.
+
 ## Requirements
 
 Python 3.9 or newer. Standard library only. Nothing to install, ever.
