@@ -164,5 +164,45 @@ export function renderEditor(root, hooks) {
     (v) => hooks.edit(() => store.setArch("ankle", v))));
   parts.push(sizes);
 
+  // --- движения в наборе ---
+  // Галочки задают не то, что показывать, а то, что попадёт в выгрузку:
+  // смотреть можно любую анимацию библиотеки, а в игру класть — выбранную.
+  const anims = group("Движения в наборе");
+  const chosen = new Set(store.state.anims);
+  const frameCount = (name) =>
+    schema.anims.find((a) => a.name === name)?.frames || 0;
+
+  for (const section of schema.animGroups) {
+    const caption = document.createElement("div");
+    caption.className = "group-caption";
+    caption.textContent = section.name;
+    anims.append(caption);
+
+    const grid = document.createElement("div");
+    grid.className = "check-grid";
+    for (const name of section.anims) {
+      const label = document.createElement("label");
+      label.className = "check";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = chosen.has(name);
+      box.addEventListener("change", () => {
+        if (box.checked) chosen.add(name); else chosen.delete(name);
+        hooks.animChange([...chosen], anims);
+      });
+      const text = document.createElement("span");
+      text.textContent = `${name} (${frameCount(name)})`;
+      label.append(box, text);
+      grid.append(label);
+    }
+    anims.append(grid);
+  }
+  const count = document.createElement("p");
+  count.className = "hint";
+  const frames = [...chosen].reduce((sum, a) => sum + frameCount(a), 0);
+  count.textContent = `выбрано ${chosen.size} движений, ${frames} кадров`;
+  anims.append(count);
+  parts.push(anims);
+
   root.replaceChildren(...parts);
 }

@@ -428,8 +428,15 @@ def base_pose():
 
 
 def shifted(pose, dx=0, dy=0, part=None):
+    """Сдвигает суставы позы. part — имя сустава, список имён или None (все)."""
     out = dict(pose)
-    for key in (part,) if part else list(pose.keys()):
+    if part is None:
+        keys = list(pose.keys())
+    elif isinstance(part, str):
+        keys = [part]
+    else:
+        keys = list(part)
+    for key in keys:
         x, y = out[key]
         out[key] = (x + dx, y + dy)
     return out
@@ -489,130 +496,99 @@ def step(pose, side, tx, ty, bend=1.0):
     return out
 
 
-def idle_frames():
-    out = []
-    for dy, lift in ((0, 0), (-1, 0), (-1, 1), (0, 0)):
-        p = shifted(base_pose(), dy=dy)
-        p = shifted(p, part="foot_b", dx=-lift)
-        p = shifted(p, part="foot_f", dx=lift)
-        p = shifted(p, part="fist_b", dy=lift)
-        p = shifted(p, part="fist_f", dy=-lift)
-        out.append(p)
-    return out
+# --- Опорная стойка и библиотека движений -----------------------------------
+# Анимации описаны не функциями, а данными в data/animations.json: кадр — это
+# список операций над скелетом (сдвиг сустава, вытянуть кисть или стопу с
+# расчётом промежуточного сустава). Смысл решения прямой: новая анимация
+# добавляется правкой файла, а не новой функцией Python, и одна анимация
+# работает на любом теле — цели задаются смещениями от опорной стойки, а не
+# абсолютными пикселями кадра.
+
+RIG_STANCE = {
+    "head": (41, 15),
+    "neck": (40, 28),
+    "chest": (40, 40),
+    "hip": (40, 64),
+    # Дальняя рука / нога: согнута, вес на ней.
+    "sh_b": (33, 44), "el_b": (29, 59), "fist_b": (36, 49),
+    "hip_b": (37, 66), "knee_b": (31, 93), "foot_b": (24, 123),
+    # Ближняя рука / нога: ведущая, выпрямленная, у подбородка.
+    "sh_f": (48, 41), "el_f": (54, 56), "fist_f": (49, 45),
+    "hip_f": (43, 63), "knee_f": (48, 92), "foot_f": (55, 122),
+}
 
 
-def punch_frames():
-    """Замах -> удар -> возврат.
+def load_anim_library(path=None) -> dict:
+    """Читает библиотеку движений (data/animations.json)."""
+    if path is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "data", "animations.json")
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
 
-    Кисть задаётся точкой: в кадре 80 px полное выпрямление руки достижимо,
-    плечо уходит вперёд, а ступни разъезжаются для устойчивости.
+
+ANIM_LIBRARY = load_anim_library()
+
+
+def anim_names():
+    """Все анимации библиотеки, в порядке появления в файле."""
+    return list(ANIM_LIBRARY["anims"].keys())
+
+
+def anim_info(name):
+    entry = ANIM_LIBRARY["anims"].get(name)
+    if entry is None:
+        raise KeyError("анимация '%s' неизвестна" % name)
+    return entry
+
+
+def apply_ops(stance, ops):
+    """Применяет операции кадра к опорной стойке -> поза.
+
+    Операции идут строго по порядку: длина конечности берётся из текущей позы,
+    поэтому сдвиг корпуса до постановки кисти меняет, куда дотянется рука. Это
+    ровно то поведение, ради которого удар и наклон записывались отдельными
+    вызовами.
     """
-    # Замах: рука отведена назад и вниз, вес на задней ноге.
-    f0 = aim(base_pose(), "f", 30, 74, bend=-1.0)
-    f0 = shifted(f0, part="fist_b", dx=-8, dy=-2)
-    f0 = shifted(f0, dx=-2)
-
-    # Удар: корпус подаётся вперёд, кисть выходит на линию плеча.
-    f1 = shifted(base_pose(), dx=4)
-    f1 = aim(f1, "f", 76, 47, bend=1.0)
-    f1 = shifted(f1, part="fist_b", dx=6, dy=-8)
-    f1 = step(f1, "b", 19, 122)
-    f1 = step(f1, "f", 60, 122)
-
-    # Возврат: рука на середине пути, корпус ещё смещён.
-    f2 = shifted(base_pose(), dx=2)
-    f2 = aim(f2, "f", 68, 60)
-    return [f0, f1, f2]
-
-
-def kick_frames():
-    """Подброс ноги -> удар -> возврат."""
-    # Подброс: стопа идёт вверх, корпус чуть отклоняется назад.
-    f0 = shifted(base_pose(), dx=-2)
-    f0 = step(f0, "f", 58, 98)
-    f0 = step(f0, "b", 24, 122)
-
-    # Удар: нога выпрямлена вперёд на уровне пояса, корпус заваливается.
-    f1 = shifted(base_pose(), dx=-3)
-    f1 = step(f1, "f", 74, 74, bend=-1.0)
-    f1 = step(f1, "b", 20, 122)
-    f1 = shifted(f1, part="sh_f", dx=-3)
-    f1 = shifted(f1, part="sh_b", dx=-5)
-    f1 = aim(f1, "f", 44, 64)
-    f1 = aim(f1, "b", 30, 68)
-
-    # Возврат: нога опускается, колено осталось высоким.
-    f2 = shifted(base_pose(), dx=-1)
-    f2 = step(f2, "f", 58, 108)
-    return [f0, f1, f2]
+    pose = dict(stance)
+    for op in ops:
+        if "shift" in op:
+            spec = op["shift"]
+            # "part" — один сустав, "parts" — несколько сразу. Второе нужно там,
+            # где части тела двигаются вместе, а ноги стоят: приседание опускает
+            # корпус, но стопы остаются на полу, и общий сдвиг утащил бы их
+            # под кадр.
+            part = spec.get("part") or (tuple(spec["parts"]) if "parts" in spec else None)
+            pose = shifted(pose, spec.get("dx", 0), spec.get("dy", 0), part)
+        elif "aim" in op:
+            spec = op["aim"]
+            side = spec["side"]
+            home = stance["fist_" + side]
+            pose = aim(pose, side, home[0] + spec["d"][0], home[1] + spec["d"][1],
+                       spec.get("bend", 1.0))
+        elif "step" in op:
+            spec = op["step"]
+            side = spec["side"]
+            home = stance["foot_" + side]
+            pose = step(pose, side, home[0] + spec["d"][0], home[1] + spec["d"][1],
+                        spec.get("bend", 1.0))
+        else:
+            raise ValueError("неизвестная операция кадра: %r" % (op,))
+    return pose
 
 
-def super_frames():
-    """Замах -> выброс -> пик -> откат. Обе руки работают вместе."""
-    # Замах: кулаки у бёдер, подбородок опущен.
-    f0 = shifted(base_pose(), dx=-3)
-    f0 = aim(f0, "f", 32, 74, bend=-1.0)
-    f0 = aim(f0, "b", 22, 70, bend=-1.0)
-    f0 = shifted(f0, part="head", dy=2)
-
-    # Разгон: руки идут вперёд, корпус подаётся.
-    f1 = shifted(base_pose(), dx=3)
-    f1 = aim(f1, "f", 70, 56)
-    f1 = aim(f1, "b", 50, 66)
-    f1 = step(f1, "f", 60, 122)
-
-    # Пик: ближняя рука выпрямлена, дальняя догоняет, ноги в разносе.
-    f2 = shifted(base_pose(), dx=5)
-    f2 = aim(f2, "f", 77, 44, bend=1.0)
-    f2 = aim(f2, "b", 58, 56)
-    f2 = step(f2, "b", 17, 122)
-    f2 = step(f2, "f", 64, 122)
-
-    # Откат: руки назад, корпус подаётся назад.
-    f3 = shifted(base_pose(), dx=2)
-    f3 = aim(f3, "f", 66, 58)
-    f3 = aim(f3, "b", 36, 70)
-    return [f0, f1, f2, f3]
+def build_anims(names=None, stance=None):
+    """-> [(имя, [поза, ...])]. По умолчанию — шестеро базовых движений."""
+    stance = stance or RIG_STANCE
+    names = names or ANIM_LIBRARY["default"]
+    return [(name, [apply_ops(stance, ops) for ops in anim_info(name)["frames"]])
+            for name in names]
 
 
-def stun_frames():
-    f0 = shifted(base_pose(), dy=14)
-    f0 = shifted(f0, part="knee_f", dy=4, dx=-4)
-    f0 = shifted(f0, part="foot_f", dy=8, dx=-8)
-    f0 = shifted(f0, part="knee_b", dy=-4)
-    f0 = shifted(f0, part="head", dy=6, dx=-2)
-    f0 = shifted(f0, part="sh_f", dy=4)
-    f0 = shifted(f0, part="el_f", dx=2, dy=6)
-    f0 = shifted(f0, part="fist_f", dx=4, dy=10)
-    f0 = shifted(f0, part="fist_b", dx=2, dy=8)
-
-    f1 = shifted(f0, dy=2)
-    f1 = shifted(f1, part="head", dx=-2)
-    return [f0, f1]
-
-
-def slip_frames():
-    f0 = shifted(base_pose(), dx=-6, dy=4)
-    f0 = shifted(f0, part="head", dx=-4)
-    f0 = shifted(f0, part="fist_f", dy=-16, dx=-6)
-    f0 = shifted(f0, part="el_f", dx=-6, dy=-8)
-    f0 = shifted(f0, part="fist_b", dy=-12, dx=-4)
-    f0 = shifted(f0, part="el_b", dx=-6, dy=-6)
-
-    f1 = shifted(f0, dx=-4, dy=6)
-    f1 = shifted(f1, part="fist_f", dy=-8, dx=4)
-    f1 = shifted(f1, part="fist_b", dy=4, dx=4)
-    return [f0, f1]
-
-
-ANIMS = [
-    ("idle", idle_frames()),
-    ("punch", punch_frames()),
-    ("kick", kick_frames()),
-    ("super", super_frames()),
-    ("stun", stun_frames()),
-    ("slip", slip_frames()),
-]
+# Базовый набор: те же шесть движений и тот же порядок, что и раньше. Всё, что
+# обращается к ANIMS, получает привычные 18 кадров; остальное может звать
+# build_anims(names) со своим набором из библиотеки.
+ANIMS = build_anims()
 
 
 # --- Построение голов по архетипам ------------------------------------------
@@ -1227,9 +1203,18 @@ def measure_heads(spec, frame=0):
     return figure / float(head_h), head_h, figure
 
 
-def build_sheet(spec):
-    sheet = Canvas(FW * COLS, FH * ROWS)
-    for row, (_name, frames) in enumerate(ANIMS):
+def build_sheet(spec, anims=None):
+    """Спрайт-лист персонажа.
+
+    anims задаёт, какие движения и в каком порядке попадут в лист: по умолчанию
+    шестеро базовых. Строк столько, сколько движений, а колонок — сколько
+    кадров в самом длинном (но не меньше COLS). Поэтому лист подстраивается под
+    любой набор: три удара или двадцать три движения из библиотеки.
+    """
+    anims = anims or ANIMS
+    cols = max(COLS, max(len(frames) for _name, frames in anims))
+    sheet = Canvas(FW * cols, FH * len(anims))
+    for row, (_name, frames) in enumerate(anims):
         for col, pose in enumerate(frames):
             sheet.blit(render_frame(pose, spec), col * FW, row * FH)
     return sheet
@@ -1427,12 +1412,28 @@ def _spec_param(materials, key):
 def schema_json() -> dict:
     """Машиночитаемое описание того, чем можно описать персонажа.
 
-    Отдаётся сайтом фронтенку, чтобы контролы и типы TypeScript собирались
-    из данных движка, а не из скопированной вручную копии.
+    Отдаётся сайтом фронтенку, чтобы контролы собирались из данных движка, а не
+    из скопированной вручную копии. Вместе с архетипом сюда попадает вся
+    библиотека движений: интерфейсу из неё строятся и вкладки, и список
+    галочек «что включить в набор».
     """
+    library = ANIM_LIBRARY["anims"]
+    groups = []
+    for name, entry in library.items():
+        group = entry.get("group", "")
+        if group and not any(g["name"] == group for g in groups):
+            groups.append({"name": group, "anims": []})
+        for g in groups:
+            if g["name"] == group:
+                g["anims"].append(name)
     return {
         "frame": {"w": FW, "h": FH, "cols": COLS, "rows": ROWS},
-        "anims": [{"name": name, "frames": len(frames)} for name, frames in ANIMS],
+        "anims": [{"name": name, "frames": len(entry["frames"]),
+                   "group": entry.get("group", ""), "fps": entry.get("fps", 8),
+                   "loop": bool(entry.get("loop"))}
+                  for name, entry in library.items()],
+        "animGroups": groups,
+        "animDefault": list(ANIM_LIBRARY["default"]),
         "arch": {
             "variants": ARCH_VARIANTS,
             "ranges": {k: list(v) for k, v in ARCH_RANGES.items()},

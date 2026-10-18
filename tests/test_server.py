@@ -14,6 +14,7 @@
 Запуск: py tests\\test_server.py
 """
 
+import io
 import json
 import os
 import sys
@@ -21,6 +22,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from http.server import ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -79,7 +81,9 @@ def test_health_and_schema():
 
     status, _headers, body = get("/api/schema")
     schema = json.loads(body)
-    check("schema отдаёт анимации", len(schema["anims"]) == 6)
+    check("schema отдаёт библиотеку движений", len(schema["anims"]) >= 20,
+          len(schema["anims"]))
+    check("schema отдаёт группы движений", len(schema["animGroups"]) >= 3)
     check("schema отдаёт границы", "ankle" in schema["arch"]["ranges"])
     check("schema отдаёт варианты головы", len(schema["arch"]["variants"]["head"]) == 6)
 
@@ -125,6 +129,12 @@ def test_preview():
     _status, headers3, _png = post("/api/preview", dict(payload, scale=3))
     check("scale=3 даёт 240x384",
           (headers3.get("X-Frame-Width"), headers3.get("X-Frame-Height")) == ("240", "384"))
+
+    # Движение из библиотеки, не входящее в базовый набор, тоже рисуется:
+    # вкладки в интерфейсе показывают всю библиотеку.
+    _status, headers4, _png = post("/api/preview",
+                                   dict(preset, anim="walk", frame=2, scale=1))
+    check("движение из библиотеки доступно", _status == 200 and headers4, _status)
 
 
 def test_errors():
@@ -200,6 +210,79 @@ def test_job():
     check("неизвестная задача даёт 404", status == 404, status)
 
 
+def test_pack():
+    print("\nНабор для игры: zip с листом, полосками и описанием")
+    preset = first_preset()
+    anims = ["idle", "walk", "jab"]
+    status, _headers, body = post("/api/jobs",
+                                  {"kind": "pack", "character": preset, "anims": anims})
+    check("задача принята (202)", status == 202, status)
+    job_id = json.loads(body)["jobId"]
+
+    deadline = time.time() + 300
+    state = {}
+    while time.time() < deadline:
+        _s, _h, raw = get("/api/jobs/%s" % job_id)
+        state = json.loads(raw)
+        if state["status"] != "running":
+            break
+        time.sleep(0.5)
+    check("задача завершилась", state.get("status") == "done", state)
+
+    status, headers, blob = get("/api/jobs/%s/file" % job_id)
+    check("отдан zip", status == 200 and blob[:2] == b"PK", headers.get("Content-Type"))
+    archive = zipfile.ZipFile(io.BytesIO(blob))
+    names = archive.namelist()
+    hero = preset["id"]
+    check("внутри общий лист", "%s/sheet.png" % hero in names, names)
+    check("внутри описание персонажа", "%s/%s.json" % (hero, hero) in names)
+    check("внутри раскладка", "%s/README.txt" % hero in names)
+    check("полоска на каждое движение",
+          all("%s/animations/%s.png" % (hero, a) in names for a in anims))
+    check("никаких лишних файлов", len(names) == 3 + len(anims), names)
+
+    strip = read_png_file(archive, "%s/animations/jab.png" % hero)
+    check("полоска удара — одна строка кадров",
+          strip[0] == 80 * 3 and strip[1] == 128, strip)
+    check("раскладка перечисляет движения",
+          all(a in archive.read("%s/README.txt" % hero).decode("utf-8") for a in anims))
+
+
+def read_png_file(archive, name):
+    tmp = os.path.join(ROOT, "preview", "_zip_test.png")
+    with open(tmp, "wb") as fh:
+        fh.write(archive.read(name))
+    size = read_png(tmp)[:2]
+    os.remove(tmp)
+    return size
+
+
+def test_selected_anims():
+    print("\nЛист из выбранных движений")
+    preset = first_preset()
+    status, _headers, body = post("/api/jobs",
+                                  {"kind": "sheet", "character": preset,
+                                   "anims": ["idle", "walk"]})
+    job_id = json.loads(body)["jobId"]
+    deadline = time.time() + 300
+    while time.time() < deadline:
+        _s, _h, raw = get("/api/jobs/%s" % job_id)
+        state = json.loads(raw)
+        if state["status"] != "running":
+            break
+        time.sleep(0.5)
+    check("лист из двух движений собран", state.get("status") == "done", state)
+
+    _s, _h, png = get("/api/jobs/%s/file" % job_id)
+    tmp = os.path.join(ROOT, "preview", "_sheet_test.png")
+    with open(tmp, "wb") as fh:
+        fh.write(png)
+    width, height = read_png(tmp)[:2]
+    os.remove(tmp)
+    check("две строки по четыре колонки", (width, height) == (320, 256),
+          "%dx%d" % (width, height))
+
+
 def test_pool():
     print("\nТот же лист, собранный пулом процессов")
     preset = first_preset()
@@ -243,6 +326,8 @@ def main():
         test_measure()
         test_root()
         test_job()
+        test_selected_anims()
+        test_pack()
         test_pool()
     finally:
         httpd.shutdown()

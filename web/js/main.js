@@ -8,6 +8,7 @@
 import * as api from "./api.js";
 import { store, cloneCharacter, animFrames } from "./store.js";
 import { renderEditor } from "./editor.js";
+import { renderExport } from "./export.js";
 
 const el = {
   status: document.getElementById("status"),
@@ -108,9 +109,20 @@ function loadCharacter(character) {
   store.set({ character: cloneCharacter(character), metrics: null });
   markSelectedPreset();
   renderPresets();
-  renderEditor(el.controls, { edit });
+  renderEditor(el.controls, { edit, animChange });
+  renderExport(el.controls, () => store.state);
   refreshPreview(0);
   scheduleMeasure();
+}
+
+/** Галочки движений: пересчитываем лист, но предпросмотр не трогаем. */
+function animChange(anims, groupNode) {
+  store.set({ anims });
+  const chosen = new Set(anims);
+  const frames = store.state.schema.anims.reduce(
+    (sum, a) => sum + (chosen.has(a.name) ? a.frames : 0), 0);
+  const hint = groupNode.querySelector(".hint");
+  if (hint) hint.textContent = `выбрано ${chosen.size} движений, ${frames} кадров`;
 }
 
 function markSelectedPreset() {
@@ -149,10 +161,14 @@ function scheduleMeasure() {
 
 function renderTabs() {
   el.tabs.replaceChildren();
+  // Вкладки — вся библиотека: посмотреть можно любое движение, даже не
+  // включённое в выгрузку. Что попадёт в набор, решают галочки в панели.
   for (const anim of store.state.schema.anims) {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = anim.name;
+    button.title = `${anim.group}: ${anim.frames} кадр(ов), ${anim.fps} fps` +
+      (anim.loop ? ", зацикливать" : "");
     button.setAttribute("aria-pressed", String(anim.name === store.state.anim));
     button.addEventListener("click", () => {
       stop();
@@ -247,11 +263,11 @@ function fitScale() {
 async function boot() {
   try {
     const [schema, presets] = await Promise.all([api.schema(), api.presets()]);
-    store.set({ schema, presets });
+    store.set({ schema, presets, anims: [...schema.animDefault] });
     fitScale();
     renderTabs();
     renderPresets();
-    setStatus(`готов: ${presets.length} пресетов`);
+    setStatus(`готов: ${presets.length} пресетов, ${schema.anims.length} движений`);
     if (presets.length) loadCharacter(presets[0]);
     window.addEventListener("resize", () => {
       if (!el.scaleInput.dataset.touched) fitScale();

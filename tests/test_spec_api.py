@@ -130,11 +130,25 @@ def test_warnings():
 def test_schema():
     section("Схема — источник истины для сайта")
     schema = G.schema_json()
-    for key in ("frame", "anims", "arch", "materials"):
+    for key in ("frame", "anims", "animGroups", "arch", "materials"):
         check("есть раздел '%s'" % key, key in schema)
     check("кадр 80x128", (schema["frame"]["w"], schema["frame"]["h"]) == (80, 128))
-    check("анимаций шесть", len(schema["anims"]) == 6)
-    check("сумма кадров 18", sum(a["frames"] for a in schema["anims"]) == 18)
+    check("в схеме вся библиотека движений",
+          len(schema["anims"]) == len(G.anim_names()),
+          "%d против %d" % (len(schema["anims"]), len(G.anim_names())))
+    check("базовый набор прежний",
+          G.ANIM_LIBRARY["default"] == ["idle", "punch", "kick", "super", "stun", "slip"],
+          G.ANIM_LIBRARY["default"])
+    check("ANIMS собран из этого набора",
+          [name for name, _f in G.ANIMS] == G.ANIM_LIBRARY["default"])
+    check("animDefault совпадает с ANIMS",
+          schema["animDefault"] == [name for name, _f in G.ANIMS],
+          schema["animDefault"])
+    grouped = [name for g in schema["animGroups"] for name in g["anims"]]
+    check("группы покрывают всю библиотеку",
+          sorted(grouped) == sorted(G.anim_names()))
+    check("у каждой анимации есть кадры и fps",
+          all(a["frames"] >= 1 and a["fps"] >= 1 for a in schema["anims"]))
     check("варианты головы совпадают с HEAD_BUILDERS",
           sorted(schema["arch"]["variants"]["head"]) == sorted(G.HEAD_BUILDERS))
     check("все границы на месте",
@@ -143,6 +157,36 @@ def test_schema():
           isinstance(schema["arch"]["ranges"]["ankle"], list))
     check("схема выживает json.dumps",
           json.dumps(schema, ensure_ascii=False) is not None)
+
+
+def test_anim_library():
+    section("Библиотека движений: данные вместо кода")
+    names = G.anim_names()
+    check("библиотека не пустая", len(names) >= 20, len(names))
+    check("все анимации разрешаются", all(G.anim_info(n)["frames"] for n in names))
+
+    # Мусор в JSON должен падать здесь, а не в середине рендера у пользователя.
+    known = {"shift", "aim", "step"}
+    bad = [(name, index, op) for name in names
+           for index, ops in enumerate(G.anim_info(name)["frames"])
+           for op in ops if len(set(op) & known) != 1]
+    check("все операции известны интерпретатору", not bad, bad[:2])
+
+    poses = G.build_anims(["walk"])
+    check("поза содержит все суставы стойки",
+          set(poses[0][1][0]) == set(G.RIG_STANCE))
+
+    try:
+        G.build_anims(["нет_такой"])
+        check("неизвестное движение падает", False)
+    except KeyError:
+        check("неизвестное движение падает", True)
+
+    check("базовые шесть дают 18 кадров",
+          sum(len(f) for _n, f in G.ANIMS) == 18)
+    check("лист строится под любой набор движений",
+          len(G.build_sheet(G.char_spec("tetrax"),
+                            G.build_anims(["idle", "walk"])).px) == 2 * G.FH)
 
 
 def test_bounds():
@@ -181,6 +225,7 @@ def main():
     test_validation()
     test_warnings()
     test_schema()
+    test_anim_library()
     test_bounds()
     test_registry()
     print()

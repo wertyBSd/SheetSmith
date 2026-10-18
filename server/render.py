@@ -17,13 +17,16 @@
 """
 
 import hashlib
+import io
 import json
 import os
 import struct
 import sys
 import time
+import zipfile
 from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor
+from functools import lru_cache
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -109,14 +112,39 @@ def build_spec(payload):
 
 
 def _anim(name, frame):
-    anims = dict(G.ANIMS)
-    if name not in anims:
+    poses = pose_of(name)
+    if not isinstance(frame, int) or not (0 <= frame < len(poses)):
+        raise SpecError(["кадр %r вне диапазона 0..%d" % (frame, len(poses) - 1)])
+    return poses[frame]
+
+
+@lru_cache(maxsize=512)
+def pose_of(name):
+    """Позы анимации из библиотеки движений.
+
+    Кэшируются по имени: позы не зависят от персонажа (заданы смещениями от
+    опорной стойки), а строятся каждый вызов заново из операций.
+    """
+    try:
+        return G.build_anims([name])[0][1]
+    except KeyError:
         raise SpecError(["анимация '%s' неизвестна, можно: %s"
-                         % (name, ", ".join(anims))])
-    frames = anims[name]
-    if not isinstance(frame, int) or not (0 <= frame < len(frames)):
-        raise SpecError(["кадр %r вне диапазона 0..%d" % (frame, len(frames) - 1)])
-    return frames[frame]
+                         % (name, ", ".join(G.anim_names()))])
+
+
+def anim_frames(name):
+    return len(pose_of(name))
+
+
+def chosen_anims(names):
+    """Проверяет и нормализует список движений для листа."""
+    if not names:
+        names = G.ANIM_LIBRARY["default"]
+    if len(names) > 32:
+        raise SpecError(["больше 32 движений в один лист не собираем"])
+    for name in names:
+        pose_of(name)          # заодно отвечает на «анимация неизвестна»
+    return list(names)
 
 
 def spec_json(spec):
@@ -241,24 +269,63 @@ class RenderService:
         self.cache.put(key, png, meta)
         return png, meta
 
-    def sheet(self, spec, scale=1, progress=None):
+    def sheet(self, spec, scale=1, progress=None, anims=None):
         """Спрайт-лист одного персонажа -> (png, meta)."""
         started = time.time()
-        payload = spec.to_json()
-        tasks, slots = _layout([spec])
-        sheet = Canvas(G.FW * G.COLS * 1, G.FH * G.ROWS)
+        anims = G.build_anims(chosen_anims(anims))
+        tasks, slots = _layout([spec], anims)
+        sheet = Canvas(G.FW * _cols(anims), G.FH * len(anims))
         for canvas, (ox, oy) in zip(self.render_many(tasks, progress), slots):
             sheet.blit(canvas, ox, oy)
         return _finish(sheet, scale, started)
 
-    def roster(self, specs, scale=1, progress=None):
+    def roster(self, specs, scale=1, progress=None, anims=None):
         """Несколько персонажей рядом -> (png, meta)."""
         started = time.time()
-        tasks, slots = _layout(specs)
-        roster = Canvas(G.FW * G.COLS * len(specs), G.FH * G.ROWS)
+        anims = G.build_anims(chosen_anims(anims))
+        tasks, slots = _layout(specs, anims)
+        roster = Canvas(G.FW * _cols(anims) * len(specs), G.FH * len(anims))
         for canvas, (ox, oy) in zip(self.render_many(tasks, progress), slots):
             roster.blit(canvas, ox, oy)
         return _finish(roster, scale, started)
+
+    def pack(self, spec, scale=1, progress=None, anims=None):
+        """Готовый набор для игры -> zip-байты.
+
+        Внутри: общий спрайт-лист, отдельный PNG на каждое движение, описание
+        персонажа и текст с раскладкой. Играющему обычно нужен либо целый лист
+        (GameMaker, Construct), либо отдельные полоски под каждую анимацию —
+        поэтому в архиве и то, и другое.
+        """
+        started = time.time()
+        names = chosen_anims(anims)
+        built = G.build_anims(names)
+        total_frames = sum(len(frames) for _n, frames in built)
+        tasks, slots = _layout([spec], built)
+        frames = self.render_many(tasks, progress)
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            sheet = Canvas(G.FW * _cols(built), G.FH * len(built))
+            for canvas, (ox, oy) in zip(frames, slots):
+                sheet.blit(canvas, ox, oy)
+            archive.writestr("%s/sheet.png" % spec.id, sheet.to_png_bytes())
+            archive.writestr("%s/%s.json" % (spec.id, spec.id),
+                             json.dumps(spec.to_json(), ensure_ascii=False, indent=2))
+            archive.writestr("%s/README.txt" % spec.id,
+                             _pack_readme(spec, built, G.FW, G.FH))
+            for index, (name, poses) in enumerate(built):
+                strip = Canvas(G.FW * len(poses), G.FH)
+                offset = sum(len(f) for _n, f in built[:index])
+                for col, canvas in enumerate(frames[offset:offset + len(poses)]):
+                    strip.blit(canvas, col * G.FW, 0)
+                archive.writestr("%s/animations/%s.png" % (spec.id, name),
+                                 strip.to_png_bytes())
+        meta = {"render_ms": int((time.time() - started) * 1000),
+                "width": 0, "height": 0, "cached": False,
+                "anims": len(built), "frames": total_frames,
+                "bytes": len(buffer.getvalue())}
+        return buffer.getvalue(), meta
 
     def measure(self, spec):
         return self.submit(measure_task, (spec.id, spec.to_json()))
@@ -269,21 +336,52 @@ class RenderService:
             self._pool = None
 
 
-def _layout(specs):
+def _cols(anims):
+    """Число колонок листа: сколько кадров в самом длинном движении."""
+    return max(G.COLS, max(len(frames) for _name, frames in anims))
+
+
+def _layout(specs, anims=None):
     """Задачи и места для кадров: по строке анимация, по колонке кадр.
 
     Возвращает параллельные списки: i-я задача кладётся в i-е место. Порядок
-    задач совпадает с ANIMS, поэтому лист собирается ровно как build_sheet(),
-    а не «как получится по мере готовности».
+    задач совпадает с порядком anims, поэтому лист собирается ровно так же,
+    как build_sheet(), а не «как получится по мере готовности».
     """
+    anims = anims or G.ANIMS
+    cols = _cols(anims)
     tasks, slots = [], []
     for index, spec in enumerate(specs):
         payload = spec.to_json()
-        for row, (name, poses) in enumerate(G.ANIMS):
+        for row, (name, poses) in enumerate(anims):
             for col in range(len(poses)):
                 tasks.append((spec.id, payload, name, col))
-                slots.append((index * G.FW * G.COLS + col * G.FW, row * G.FH))
+                slots.append((index * G.FW * cols + col * G.FW, row * G.FH))
     return tasks, slots
+
+
+def _pack_readme(spec, anims, fw, fh):
+    """Текст внутри архива: что где лежит и как нарезать лист."""
+    lines = [
+        "SheetSmith — набор спрайтов «%s»" % spec.id,
+        "",
+        "sheet.png — весь набор: по строке движение, по колонке кадр.",
+        "         Кадр %dx%d, сетка %d x %d, слева направо — кадры 0..n-1."
+        % (fw, fh, _cols(anims), len(anims)),
+        "animations/ — то же, но отдельным файлом на каждое движение,",
+        "         одна строка, кадры слева направо.",
+        "%s.json — описание персонажа (палитра и архетип), принимается" % spec.id,
+        "         движком: py char_generator.py --characters <файл> --hero %s" % spec.id,
+        "",
+        "Движения в порядке строк:",
+    ]
+    for index, (name, poses) in enumerate(anims):
+        info = G.anim_info(name)
+        lines.append("  %2d. %-12s кадров: %d   %s   %s"
+                     % (index, name, len(poses), info.get("group", ""),
+                        "зацикливать" if info.get("loop") else "однократно"))
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _finish(canvas, scale, started):

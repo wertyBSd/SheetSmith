@@ -42,7 +42,7 @@ sys.path.insert(0, HERE)
 
 import char_generator as G                       # noqa: E402
 from render import (RenderService, SpecError,    # noqa: E402
-                    build_spec, presets)
+                    anim_frames, build_spec, chosen_anims, presets)
 
 WEB_ROOT = os.path.join(ROOT, "web")
 WEB_DIST = os.path.join(WEB_ROOT, "dist")
@@ -248,14 +248,16 @@ class Handler(BaseHTTPRequestHandler):
     def _create_job(self, payload):
         kind = payload.get("kind", "sheet")
         scale = int(payload.get("scale", 1))
-        per_sheet = sum(len(frames) for _n, frames in G.ANIMS)
+        anims = chosen_anims(payload.get("anims"))
+        frames_total = sum(anim_frames(name) for name in anims)
         if kind == "sheet":
             spec = build_spec(payload.get("character") or payload)
-            # В задачу уходит только PNG: метаданные рендера нужны в логах
-            # сервера, а статус задачи должен оставаться лёгким JSON.
+            # В задачу уходит только результат: метаданные рендера нужны в
+            # логах сервера, а статус задачи должен оставаться лёгким JSON.
             job_id = start_job(
-                kind, lambda done: self.server.service.sheet(spec, scale, done)[0],
-                per_sheet)
+                kind,
+                lambda done: self.server.service.sheet(spec, scale, done, anims)[0],
+                frames_total)
         elif kind == "roster":
             entries = payload.get("characters") or []
             if not entries:
@@ -264,11 +266,20 @@ class Handler(BaseHTTPRequestHandler):
                 raise SpecError(["ростер длиннее 12 персонажей не рисуем"])
             specs = [build_spec(item) for item in entries]
             job_id = start_job(
-                kind, lambda done: self.server.service.roster(specs, scale, done)[0],
-                per_sheet * len(specs))
+                kind,
+                lambda done: self.server.service.roster(specs, scale, done, anims)[0],
+                frames_total * len(specs))
+        elif kind == "pack":
+            spec = build_spec(payload.get("character") or payload)
+            job_id = start_job(
+                kind,
+                lambda done: self.server.service.pack(spec, 1, done, anims)[0],
+                frames_total)
         else:
-            raise SpecError(["вид задачи '%s' неизвестен: sheet или roster" % kind])
-        self._json({"jobId": job_id, "kind": kind}, status=202)
+            raise SpecError(["вид задачи '%s' неизвестен: sheet, roster или pack"
+                             % kind])
+        self._json({"jobId": job_id, "kind": kind, "anims": anims,
+                    "frames": frames_total}, status=202)
 
     def _job_status(self, job_id):
         job = get_job(job_id)
@@ -279,11 +290,16 @@ class Handler(BaseHTTPRequestHandler):
     def _job_file(self, job_id):
         with JOBS_LOCK:
             job = JOBS.get(job_id)
-            png = job.get("result") if job else None
-        if not png:
+            result = job.get("result") if job else None
+            kind = job.get("kind") if job else ""
+        if not result:
             return self._error(404, "задача не готова или не найдена")
-        self._png(png, {"Content-Disposition":
-                        'attachment; filename="%s.png"' % job_id})
+        types = {"sheet": "image/png", "roster": "image/png", "pack": "application/zip"}
+        names = {"sheet": "%s.png", "roster": "roster.png", "pack": "%s-sprites.zip"}
+        name = names.get(kind, "result.bin")
+        self._send(200, result, types.get(kind, "application/octet-stream"),
+                   {"Content-Disposition":
+                    'attachment; filename="%s"' % (name % job_id if "%s" in name else name)})
 
     def _save(self, payload):
         """Кладёт ассет в out/ и героя в characters.local.json — мост в CLI."""

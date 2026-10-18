@@ -1,0 +1,433 @@
+{
+  "_comment_ru": [
+    "Библиотека движений SheetSmith. Позы описаны не картинками, а операциями",
+    "над скелетом: сдвиг суставов и постановка кисти/стопы с расчётом локтя и",
+    "колена двухзвенной IK. Поэтому анимация переносится на любое тело, а новая",
+    "анимация добавляется правкой этого файла — Python трогать не нужно.",
+    "",
+    "Операции кадра:",
+    "  {\"shift\": {\"part\": \"имя_сустава_или_null\", \"dx\": 0, \"dy\": 0}}",
+    "      сдвиг всех суставов (part=null) или одного. Опорная точка не важна —",
+    "      важно направление и величина.",
+    "  {\"aim\":  {\"side\": \"f|b\", \"d\": [dx, dy], \"bend\": 1.0}}",
+    "      кисть тянется на смещение d от её места в опорной стойке; локоть",
+    "      считается IK. bend = -1 меняет изгиб локтя.",
+    "  {\"step\": {\"side\": \"f|b\", \"d\": [dx, dy], \"bend\": 1.0}}",
+    "      то же для стопы и колена.",
+    "",
+    "Кадры внутри анимации применяются к опорной стойке независимо, каждый с",
+    "нуля: чтобы кадр был производным от предыдущего, продублируй его операции.",
+    "group — раздел в интерфейсе, fps — подсказка для плеера, loop — зацикливать."
+  ],
+
+  "default": ["idle", "punch", "kick", "super", "stun", "slip"],
+
+  "anims": {
+    "idle": {
+      "group": "покой", "fps": 6, "loop": true,
+      "frames": [
+        [],
+        [{"shift": {"dx": 0, "dy": -1}}],
+        [{"shift": {"dx": 0, "dy": -1}},
+         {"shift": {"part": "foot_b", "dx": -1, "dy": 0}},
+         {"shift": {"part": "foot_f", "dx": 1, "dy": 0}},
+         {"shift": {"part": "fist_b", "dx": 0, "dy": 1}},
+         {"shift": {"part": "fist_f", "dx": 0, "dy": -1}}],
+        []
+      ]
+    },
+
+    "walk": {
+      "group": "движение", "fps": 8, "loop": true,
+      "frames": [
+        [{"step": {"side": "f", "d": [10, 0], "bend": 1.0}},
+         {"step": {"side": "b", "d": [-10, 0], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 2, "dy": -3}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -2, "dy": 3}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b", "hip_f", "hip_b"], "dx": 0, "dy": -3}},
+         {"step": {"side": "f", "d": [4, -4], "bend": 1.0}},
+         {"step": {"side": "b", "d": [-4, 0], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 2, "dy": 2}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -2, "dy": -2}}],
+        [{"step": {"side": "f", "d": [-10, 0], "bend": 1.0}},
+         {"step": {"side": "b", "d": [10, 0], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 2, "dy": 3}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -2, "dy": -3}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b", "hip_f", "hip_b"], "dx": 0, "dy": -3}},
+         {"step": {"side": "f", "d": [-4, -4], "bend": 1.0}},
+         {"step": {"side": "b", "d": [4, 0], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 2, "dy": -2}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -2, "dy": 2}}]
+      ]
+    },
+
+    "run": {
+      "group": "движение", "fps": 12, "loop": true,
+      "frames": [
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "hip_f", "hip_b"], "dx": 0, "dy": -3}},
+         {"step": {"side": "f", "d": [14, -2], "bend": 1.0}},
+         {"step": {"side": "b", "d": [-11, 0], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 3, "dy": -4}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -3, "dy": 4}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b", "hip_f", "hip_b"], "dx": 0, "dy": -7}},
+         {"step": {"side": "f", "d": [6, -9], "bend": 1.0}},
+         {"step": {"side": "b", "d": [0, -7], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 3, "dy": 4}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -3, "dy": -3}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "hip_f", "hip_b"], "dx": 0, "dy": -3}},
+         {"step": {"side": "f", "d": [-11, 0], "bend": 1.0}},
+         {"step": {"side": "b", "d": [14, -2], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 3, "dy": 4}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -3, "dy": -4}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b", "hip_f", "hip_b"], "dx": 0, "dy": -7}},
+         {"step": {"side": "f", "d": [0, -7], "bend": 1.0}},
+         {"step": {"side": "b", "d": [6, -9], "bend": 1.0}},
+         {"shift": {"parts": ["el_f", "fist_f"], "dx": 3, "dy": -3}},
+         {"shift": {"parts": ["el_b", "fist_b"], "dx": -3, "dy": 4}}]
+      ]
+    },
+
+    "crouch": {
+      "group": "движение", "fps": 8, "loop": false,
+      "frames": [
+        [{"shift": {"parts": ["head", "neck", "chest", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b"], "dx": -2, "dy": 20}},
+         {"shift": {"parts": ["hip", "hip_f", "hip_b"], "dx": -3, "dy": 13}},
+         {"shift": {"part": "knee_f", "dx": 6, "dy": 3}},
+         {"shift": {"part": "knee_b", "dx": -6, "dy": 3}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b"], "dx": -3, "dy": 26}},
+         {"shift": {"parts": ["hip", "hip_f", "hip_b"], "dx": -4, "dy": 17}},
+         {"shift": {"part": "knee_f", "dx": 8, "dy": 4}},
+         {"shift": {"part": "knee_b", "dx": -8, "dy": 4}}]
+      ]
+    },
+
+    "jump": {
+      "group": "движение", "fps": 10, "loop": false,
+      "frames": [
+        [{"shift": {"parts": ["head", "neck", "chest", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b"], "dx": 0, "dy": 22}},
+         {"shift": {"parts": ["hip", "hip_f", "hip_b"], "dx": 0, "dy": 14}},
+         {"shift": {"part": "knee_f", "dx": 6, "dy": 4}},
+         {"shift": {"part": "knee_b", "dx": -6, "dy": 4}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b", "hip_f", "hip_b"], "dx": 0, "dy": -10}},
+         {"shift": {"part": "knee_f", "dx": 5, "dy": -8}},
+         {"shift": {"part": "foot_f", "dx": 4, "dy": -10}},
+         {"shift": {"part": "knee_b", "dx": -5, "dy": -6}},
+         {"shift": {"part": "foot_b", "dx": -4, "dy": -8}},
+         {"shift": {"part": "fist_f", "dx": 0, "dy": -8}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b", "hip_f", "hip_b"], "dx": 0, "dy": -6}},
+         {"shift": {"part": "knee_f", "dx": 6, "dy": -10}},
+         {"shift": {"part": "foot_f", "dx": 5, "dy": -12}},
+         {"shift": {"part": "knee_b", "dx": -5, "dy": -8}},
+         {"shift": {"part": "foot_b", "dx": -4, "dy": -9}},
+         {"shift": {"part": "fist_f", "dx": 3, "dy": -5}},
+         {"shift": {"part": "fist_b", "dx": -3, "dy": -5}}]
+      ]
+    },
+
+    "fall": {
+      "group": "движение", "fps": 8, "loop": true,
+      "frames": [
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "hip_f", "hip_b"], "dx": 0, "dy": 3}},
+         {"shift": {"part": "knee_f", "dx": 4, "dy": -5}},
+         {"shift": {"part": "foot_f", "dx": 3, "dy": -7}},
+         {"shift": {"part": "knee_b", "dx": -4, "dy": -5}},
+         {"shift": {"part": "foot_b", "dx": -3, "dy": -7}},
+         {"shift": {"part": "fist_f", "dx": 4, "dy": -3}},
+         {"shift": {"part": "fist_b", "dx": -4, "dy": -3}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "hip_f", "hip_b"], "dx": 0, "dy": 5}},
+         {"shift": {"part": "knee_f", "dx": 3, "dy": -4}},
+         {"shift": {"part": "foot_f", "dx": 2, "dy": -5}},
+         {"shift": {"part": "knee_b", "dx": -3, "dy": -4}},
+         {"shift": {"part": "foot_b", "dx": -2, "dy": -5}},
+         {"shift": {"part": "fist_f", "dx": 3, "dy": -2}},
+         {"shift": {"part": "fist_b", "dx": -3, "dy": -2}}]
+      ]
+    },
+
+    "land": {
+      "group": "движение", "fps": 10, "loop": false,
+      "frames": [
+        [{"shift": {"parts": ["head", "neck", "chest", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b"], "dx": 0, "dy": 24}},
+         {"shift": {"parts": ["hip", "hip_f", "hip_b"], "dx": 0, "dy": 15}},
+         {"shift": {"part": "knee_f", "dx": 7, "dy": 4}},
+         {"shift": {"part": "knee_b", "dx": -7, "dy": 4}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "sh_f", "sh_b", "el_f", "el_b", "fist_f", "fist_b"], "dx": 0, "dy": 14}},
+         {"shift": {"parts": ["hip", "hip_f", "hip_b"], "dx": 0, "dy": 9}},
+         {"shift": {"part": "knee_f", "dx": 4, "dy": 3}},
+         {"shift": {"part": "knee_b", "dx": -4, "dy": 3}}]
+      ]
+    },
+
+    "dash": {
+      "group": "движение", "fps": 12, "loop": false,
+      "frames": [
+        [{"shift": {"dx": 6, "dy": 10}},
+         {"step": {"side": "f", "d": [8, -2], "bend": 1.0}},
+         {"step": {"side": "b", "d": [-9, 0], "bend": 1.0}},
+         {"shift": {"part": "fist_f", "dx": 4, "dy": -2}},
+         {"shift": {"part": "fist_b", "dx": -4, "dy": 2}}],
+        [{"shift": {"dx": 11, "dy": 8}},
+         {"step": {"side": "f", "d": [12, 0], "bend": 1.0}},
+         {"step": {"side": "b", "d": [-12, 0], "bend": 1.0}},
+         {"shift": {"part": "fist_f", "dx": 6, "dy": -4}},
+         {"shift": {"part": "fist_b", "dx": -6, "dy": 2}}],
+        [{"shift": {"dx": 8, "dy": 4}},
+         {"step": {"side": "f", "d": [10, 0], "bend": 1.0}},
+         {"step": {"side": "b", "d": [-10, 0], "bend": 1.0}},
+         {"shift": {"part": "fist_f", "dx": 3, "dy": -2}},
+         {"shift": {"part": "fist_b", "dx": -3, "dy": 2}}]
+      ]
+    },
+
+    "block": {
+      "group": "защита", "fps": 8, "loop": false,
+      "frames": [
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "hip_f", "hip_b"], "dx": -2, "dy": 2}},
+         {"aim": {"side": "f", "d": [4, -8], "bend": 1.0}},
+         {"aim": {"side": "b", "d": [-3, -3], "bend": -1.0}}],
+        [{"shift": {"parts": ["head", "neck", "chest", "hip", "sh_f", "sh_b", "hip_f", "hip_b"], "dx": -3, "dy": 2}},
+         {"aim": {"side": "f", "d": [2, -10], "bend": 1.0}},
+         {"aim": {"side": "b", "d": [-5, -5], "bend": -1.0}},
+         {"shift": {"part": "fist_f", "dx": -2, "dy": 0}}]
+      ]
+    },
+
+    "jab": {
+      "group": "атака", "fps": 14, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -1, "dy": 0}},
+         {"aim": {"side": "f", "d": [-6, 6], "bend": 1.0}},
+         {"shift": {"part": "fist_b", "dx": 0, "dy": 2}}],
+        [{"shift": {"dx": 3, "dy": 0}},
+         {"aim": {"side": "f", "d": [21, -5], "bend": 1.0}},
+         {"shift": {"part": "fist_b", "dx": -3, "dy": -2}}],
+        [{"shift": {"dx": 1, "dy": 0}},
+         {"aim": {"side": "f", "d": [11, -2], "bend": 1.0}}]
+      ]
+    },
+
+    "cross": {
+      "group": "атака", "fps": 13, "loop": false,
+      "frames": [
+        [{"shift": {"dx": 0, "dy": 0}},
+         {"aim": {"side": "b", "d": [-4, 8], "bend": 1.0}},
+         {"aim": {"side": "f", "d": [-4, 6], "bend": 1.0}}],
+        [{"shift": {"dx": 5, "dy": 0}},
+         {"aim": {"side": "b", "d": [19, -4], "bend": 1.0}},
+         {"aim": {"side": "f", "d": [-8, 4], "bend": 1.0}}],
+        [{"shift": {"dx": 2, "dy": 0}},
+         {"aim": {"side": "b", "d": [8, 0], "bend": 1.0}}]
+      ]
+    },
+
+    "hook": {
+      "group": "атака", "fps": 12, "loop": false,
+      "frames": [
+        [{"shift": {"dx": 0, "dy": 0}},
+         {"aim": {"side": "f", "d": [-8, 2], "bend": -1.0}}],
+        [{"shift": {"dx": 2, "dy": 1}},
+         {"aim": {"side": "f", "d": [15, -3], "bend": -1.0}},
+         {"shift": {"part": "head", "dx": 2, "dy": 0}}],
+        [{"shift": {"dx": 1, "dy": 0}},
+         {"aim": {"side": "f", "d": [6, 0], "bend": -1.0}}]
+      ]
+    },
+
+    "uppercut": {
+      "group": "атака", "fps": 12, "loop": false,
+      "frames": [
+        [{"shift": {"dx": 0, "dy": 2}},
+         {"aim": {"side": "f", "d": [-6, 10], "bend": -1.0}},
+         {"shift": {"part": "knee_f", "dx": 3, "dy": 4}}],
+        [{"shift": {"dx": 4, "dy": -2}},
+         {"aim": {"side": "f", "d": [9, -15], "bend": -1.0}},
+         {"shift": {"part": "knee_f", "dx": 2, "dy": 2}},
+         {"shift": {"part": "head", "dx": 2, "dy": -2}}],
+        [{"shift": {"dx": 2, "dy": 0}},
+         {"aim": {"side": "f", "d": [4, -6], "bend": -1.0}}]
+      ]
+    },
+
+    "low_kick": {
+      "group": "атака", "fps": 12, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -2, "dy": 4}},
+         {"step": {"side": "f", "d": [-4, 8], "bend": 1.0}}],
+        [{"shift": {"dx": 2, "dy": 6}},
+         {"step": {"side": "f", "d": [12, 6], "bend": 1.0}},
+         {"shift": {"part": "head", "dx": 2, "dy": 2}},
+         {"shift": {"part": "fist_f", "dx": 2, "dy": 3}}],
+        [{"shift": {"dx": 0, "dy": 4}},
+         {"step": {"side": "f", "d": [4, 6], "bend": 1.0}}]
+      ]
+    },
+
+    "round_kick": {
+      "group": "атака", "fps": 11, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -2, "dy": 2}},
+         {"step": {"side": "f", "d": [-3, 6], "bend": 1.0}},
+         {"shift": {"part": "hip", "dx": -2, "dy": 0}}],
+        [{"shift": {"dx": -3, "dy": 0}},
+         {"step": {"side": "f", "d": [23, -8], "bend": -1.0}},
+         {"shift": {"part": "hip", "dx": -3, "dy": 0}},
+         {"shift": {"part": "head", "dx": -3, "dy": 0}},
+         {"shift": {"part": "sh_b", "dx": -4, "dy": 0}},
+         {"aim": {"side": "b", "d": [-4, 6], "bend": -1.0}}],
+        [{"shift": {"dx": -1, "dy": 2}},
+         {"step": {"side": "f", "d": [6, -2], "bend": -1.0}}]
+      ]
+    },
+
+    "knee": {
+      "group": "атака", "fps": 12, "loop": false,
+      "frames": [
+        [{"shift": {"dx": 0, "dy": 4}},
+         {"shift": {"part": "hip_f", "dx": 3, "dy": -3}},
+         {"shift": {"part": "knee_f", "dx": 5, "dy": -7}},
+         {"shift": {"part": "foot_f", "dx": 2, "dy": -5}}],
+        [{"shift": {"dx": 3, "dy": -2}},
+         {"shift": {"part": "hip_f", "dx": 6, "dy": -10}},
+         {"shift": {"part": "knee_f", "dx": 10, "dy": -16}},
+         {"shift": {"part": "foot_f", "dx": 6, "dy": -12}},
+         {"shift": {"part": "fist_f", "dx": 0, "dy": 4}},
+         {"shift": {"part": "fist_b", "dx": 0, "dy": 4}}],
+        [{"shift": {"dx": 1, "dy": 2}},
+         {"shift": {"part": "hip_f", "dx": 3, "dy": -5}},
+         {"shift": {"part": "knee_f", "dx": 5, "dy": -9}},
+         {"shift": {"part": "foot_f", "dx": 2, "dy": -6}}]
+      ]
+    },
+
+    "throw": {
+      "group": "атака", "fps": 10, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -2, "dy": 0}},
+         {"aim": {"side": "b", "d": [2, 4], "bend": 1.0}},
+         {"aim": {"side": "f", "d": [4, 0], "bend": 1.0}}],
+        [{"shift": {"dx": 4, "dy": 2}},
+         {"aim": {"side": "b", "d": [14, 2], "bend": 1.0}},
+         {"aim": {"side": "f", "d": [16, -2], "bend": 1.0}},
+         {"shift": {"part": "sh_f", "dx": 2, "dy": 0}}],
+        [{"shift": {"dx": 6, "dy": 4}},
+         {"aim": {"side": "b", "d": [16, -4], "bend": 1.0}},
+         {"aim": {"side": "f", "d": [18, -6], "bend": 1.0}},
+         {"shift": {"part": "knee_f", "dx": 3, "dy": 3}}]
+      ]
+    },
+
+    "punch": {
+      "group": "атака", "fps": 12, "loop": false,
+      "frames": [
+        [{"aim": {"side": "f", "d": [-19, 29], "bend": -1.0}},
+         {"shift": {"part": "fist_b", "dx": -8, "dy": -2}},
+         {"shift": {"dx": -2, "dy": 0}}],
+        [{"shift": {"dx": 4, "dy": 0}},
+         {"aim": {"side": "f", "d": [27, 2], "bend": 1.0}},
+         {"shift": {"part": "fist_b", "dx": 6, "dy": -8}},
+         {"step": {"side": "b", "d": [-5, -1], "bend": 1.0}},
+         {"step": {"side": "f", "d": [5, 0], "bend": 1.0}}],
+        [{"shift": {"dx": 2, "dy": 0}},
+         {"aim": {"side": "f", "d": [19, 15], "bend": 1.0}}]
+      ]
+    },
+
+    "kick": {
+      "group": "атака", "fps": 11, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -2, "dy": 0}},
+         {"step": {"side": "f", "d": [3, -24], "bend": 1.0}},
+         {"step": {"side": "b", "d": [0, -1], "bend": 1.0}}],
+        [{"shift": {"dx": -3, "dy": 0}},
+         {"step": {"side": "f", "d": [19, -48], "bend": -1.0}},
+         {"step": {"side": "b", "d": [-4, -1], "bend": 1.0}},
+         {"shift": {"part": "sh_f", "dx": -3, "dy": 0}},
+         {"shift": {"part": "sh_b", "dx": -5, "dy": 0}},
+         {"aim": {"side": "f", "d": [-5, 19], "bend": 1.0}},
+         {"aim": {"side": "b", "d": [-6, 19], "bend": 1.0}}],
+        [{"shift": {"dx": -1, "dy": 0}},
+         {"step": {"side": "f", "d": [3, -14], "bend": 1.0}}]
+      ]
+    },
+
+    "super": {
+      "group": "атака", "fps": 10, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -3, "dy": 0}},
+         {"aim": {"side": "f", "d": [-17, 29], "bend": -1.0}},
+         {"aim": {"side": "b", "d": [-14, 21], "bend": -1.0}},
+         {"shift": {"part": "head", "dx": 0, "dy": 2}}],
+        [{"shift": {"dx": 3, "dy": 0}},
+         {"aim": {"side": "f", "d": [21, 11], "bend": 1.0}},
+         {"aim": {"side": "b", "d": [14, 17], "bend": 1.0}},
+         {"step": {"side": "f", "d": [5, 0], "bend": 1.0}}],
+        [{"shift": {"dx": 5, "dy": 0}},
+         {"aim": {"side": "f", "d": [28, -1], "bend": 1.0}},
+         {"aim": {"side": "b", "d": [22, 7], "bend": 1.0}},
+         {"step": {"side": "b", "d": [-7, -1], "bend": 1.0}},
+         {"step": {"side": "f", "d": [9, 0], "bend": 1.0}}],
+        [{"shift": {"dx": 2, "dy": 0}},
+         {"aim": {"side": "f", "d": [17, 13], "bend": 1.0}},
+         {"aim": {"side": "b", "d": [0, 21], "bend": 1.0}}]
+      ]
+    },
+
+    "hit": {
+      "group": "реакция", "fps": 10, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -5, "dy": 2}},
+         {"shift": {"part": "head", "dx": -5, "dy": 1}},
+         {"shift": {"part": "sh_f", "dx": -3, "dy": 0}},
+         {"shift": {"part": "fist_f", "dx": -3, "dy": 4}},
+         {"shift": {"part": "fist_b", "dx": -4, "dy": 3}},
+         {"shift": {"part": "knee_b", "dx": -3, "dy": 2}}],
+        [{"shift": {"dx": -8, "dy": 4}},
+         {"shift": {"part": "head", "dx": -6, "dy": 2}},
+         {"shift": {"part": "fist_f", "dx": -4, "dy": 6}},
+         {"shift": {"part": "fist_b", "dx": -5, "dy": 5}}]
+      ]
+    },
+
+    "stun": {
+      "group": "реакция", "fps": 6, "loop": true,
+      "frames": [
+        [{"shift": {"dx": 0, "dy": 14}},
+         {"shift": {"part": "knee_f", "dx": -4, "dy": 4}},
+         {"shift": {"part": "foot_f", "dx": -8, "dy": 8}},
+         {"shift": {"part": "knee_b", "dx": 0, "dy": -4}},
+         {"shift": {"part": "head", "dx": -2, "dy": 6}},
+         {"shift": {"part": "sh_f", "dx": 0, "dy": 4}},
+         {"shift": {"part": "el_f", "dx": 2, "dy": 6}},
+         {"shift": {"part": "fist_f", "dx": 4, "dy": 10}},
+         {"shift": {"part": "fist_b", "dx": 2, "dy": 8}}],
+        [{"shift": {"dx": 0, "dy": 16}},
+         {"shift": {"part": "knee_f", "dx": -4, "dy": 4}},
+         {"shift": {"part": "foot_f", "dx": -8, "dy": 8}},
+         {"shift": {"part": "knee_b", "dx": 0, "dy": -4}},
+         {"shift": {"part": "head", "dx": -4, "dy": 6}},
+         {"shift": {"part": "sh_f", "dx": 0, "dy": 4}},
+         {"shift": {"part": "el_f", "dx": 2, "dy": 6}},
+         {"shift": {"part": "fist_f", "dx": 4, "dy": 10}},
+         {"shift": {"part": "fist_b", "dx": 2, "dy": 8}}]
+      ]
+    },
+
+    "slip": {
+      "group": "реакция", "fps": 8, "loop": false,
+      "frames": [
+        [{"shift": {"dx": -6, "dy": 4}},
+         {"shift": {"part": "head", "dx": -4, "dy": 0}},
+         {"shift": {"part": "fist_f", "dx": -6, "dy": -16}},
+         {"shift": {"part": "el_f", "dx": -6, "dy": -8}},
+         {"shift": {"part": "fist_b", "dx": -4, "dy": -12}},
+         {"shift": {"part": "el_b", "dx": -6, "dy": -6}}],
+        [{"shift": {"dx": -10, "dy": 10}},
+         {"shift": {"part": "head", "dx": -4, "dy": 0}},
+         {"shift": {"part": "fist_f", "dx": -2, "dy": -24}},
+         {"shift": {"part": "el_f", "dx": -6, "dy": -8}},
+         {"shift": {"part": "fist_b", "dx": 0, "dy": -8}},
+         {"shift": {"part": "el_b", "dx": -6, "dy": -6}}]
+      ]
+    }
+  }
+}

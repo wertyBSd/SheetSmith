@@ -159,3 +159,33 @@ select { background: #1e2230; color: var(--text); border: 1px solid var(--line);
 
 .notice { color: var(--warn); font-size: 12px; margin: 6px 0 0; padding-left: 16px; }
 .notice li { margin: 2px 0; }
+
+/* --- галочки движений --- */
+
+.group-caption {
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); margin: 8px 0 4px;
+}
+.group-caption:first-of-type { margin-top: 0; }
+
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+
+.check {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text); cursor: pointer;
+}
+.check input { accent-color: var(--accent); margin: 0; }
+.check:hover { color: var(--accent); }
+
+/* --- выгрузка --- */
+
+.export { display: grid; gap: 6px; }
+.export button {
+  background: #1e2230; color: var(--text); border: 1px solid var(--line);
+  border-radius: 4px; padding: 6px 10px; cursor: pointer; font: inherit; text-align: left;
+}
+.export button:hover:not(:disabled) { border-color: var(--accent); }
+.export button:disabled { opacity: .5; cursor: default; }
+.export button.primary { background: var(--accent); color: #08121a; border-color: var(--accent); font-weight: 600; }
+.progress { height: 4px; background: #232734; border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }

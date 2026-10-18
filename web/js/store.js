@@ -11,7 +11,8 @@ export const store = {
     schema: null,
     presets: [],
     character: null,   // { id, materials, arch } — ровно формат characters.json
-    anim: "idle",
+    anims: [],         // движения, попадающие в выгрузку (не в предпросмотр)
+    anim: "idle",      // какое движение смотрим сейчас
     frame: 0,
     scale: 3,
     playing: false,
