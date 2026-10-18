@@ -280,13 +280,92 @@ def _lambert(nx, ny, nz, depth):
     return lam - min(depth, 6) * 0.055
 
 
+# --- Стиль: как именно выглядит персонаж -----------------------------------
+# Пропорции и палитра отвечают за КАКОЙ это боец, стиль — за КАК он нарисован.
+# Три параметра покрывают большую часть разницы между «читается как чиби»,
+# «строгий 16-бит» и «почти реализм»: размер головы, число полос света и
+# толщина контура. Значения по умолчанию — те, что были зашиты в движок.
+STYLE_PARAMS = {
+    "head": (0.6, 1.8),      # во сколько раз больше базовая доля головы
+    "bands": (2, 6),         # полос сел-шейдинга: 2 — грубо, 3 — как было, 6 — гладко
+    "outline": (0, 2),       # толщина контура в пикселях, 0 — без обводки
+}
+
+STYLE_DEFAULTS = {"head": 1.0, "bands": 3, "outline": 1}
+
+
+def _style_value(style, key):
+    """Значение стиля; незаданное — историческое."""
+    value = (style or {}).get(key)
+    low, high = STYLE_PARAMS[key]
+    if not isinstance(value, (int, float)):
+        return STYLE_DEFAULTS[key]
+    return max(low, min(high, value))
+
+
+def style_library(path=None):
+    """Библиотека стилей (data/styles.json): готовые наборы параметров."""
+    if path is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "data", "styles.json")
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)["styles"]
+
+
+def apply_style(spec, name):
+    """Новый CharSpec: стиль поверх персонажа. Фигура и палитра не меняются."""
+    entry = style_library().get(name)
+    if entry is None:
+        raise KeyError("стиль '%s' неизвестен" % name)
+    return CharSpec.from_json(spec.id, {"style": entry.get("params") or {}}, base=spec)
+
+
 def _shade_band(lam):
-    """Индекс полосы тона: 0 — свет, 1 — основной, 2 — тень."""
+    """Индекс полосы тона при трёх полосах: 0 — свет, 1 — основной, 2 — тень."""
     if lam > 0.42:
         return 0
     if lam > -0.18:
         return 1
     return 2
+
+
+def _band_index(lam, bands):
+    """Индекс полосы при произвольном числе полос.
+
+    Три полосы — это ровно прежнее поведение: те же границы (0.42 и -0.18),
+    те же тона рампы. Больше трёх делят тот же промежуток промежутками,
+    меньше — схлопывают его в два: свет против тени.
+    """
+    if bands <= 1:
+        return 0
+    if bands == 3:
+        return _shade_band(lam)
+    if bands == 2:
+        # Две полосы: свет против тени, ровно посередине прежнего диапазона.
+        return 0 if lam > 0.12 else 1
+    step = 0.60 / (bands - 1.0)
+    for index in range(bands):
+        if lam > 0.42 - step * index:
+            return index
+    return bands - 1
+
+
+def _band_color(tones, index, bands):
+    """Цвет полосы на трёхтональной рампе.
+
+    Три полосы дают ровно тона рампы; больше — промежутки между ними, поэтому
+    «гладкий» стиль не требует ни новых цветов, ни размытия.
+    """
+    if bands <= 1:
+        return tones[1]
+    if bands == 3:
+        return tones[min(index, 2)]
+    if bands == 2:
+        return tones[0] if index == 0 else blend(tones[1], tones[2], 0.7)
+    t = index / (bands - 1.0) * 2.0
+    if t <= 1.0:
+        return blend(tones[0], tones[1], t)
+    return blend(tones[1], tones[2], t - 1.0)
 
 
 def blend(a, b, t):
@@ -297,12 +376,16 @@ def blend(a, b, t):
             round(a[3] + (b[3] - a[3]) * t))
 
 
-def cel_fill(canvas, mask, material, depth_scale=1.0):
+def cel_fill(canvas, mask, material, depth_scale=1.0, bands=3):
     """Заливает маску сел-шейдингом по полю расстояний.
 
     Поверх трёх тонов кладётся блик материала (см. mat()): сталь ловит
     свет узким всполохом, кожа — широким мягким пятном, ткань не ловит
     вовсе. Именно это различает материалы, а не тон заливки.
+
+    `bands` — число полос света. Три — язык пиксель-арта, и они дают тона
+    рампы напрямую; больше трёх берут промежутки между тонами, и картинка
+    становится ближе к рисованной, а не к игровой.
 
     Блик требует согласия соседей: поле расстояний шумит, `lam` скачет
     пиксель к пикселю, и одиночный порог давал не блик, а светлые брызги
@@ -341,7 +424,7 @@ def cel_fill(canvas, mask, material, depth_scale=1.0):
         for x in range(w):
             if not mask.has(x, y):
                 continue
-            canvas.set(x, y, tones[_shade_band(lam[y][x])])
+            canvas.set(x, y, _band_color(tones, _band_index(lam[y][x], bands), bands))
             if spec is None or not glistening(x, y):
                 continue
             if (glistening(x - 1, y) + glistening(x + 1, y)
@@ -776,12 +859,13 @@ def build_head(spec, m, hx, hy, w):
            "armor": Mask(box, FH), "neon": Mask(box, FH)}
     brow, lash, iris, glint, neck_shadow, over = HEAD_BUILDERS[spec.arch["head"]](
         tmp, c, c, box)
+    head_k = HEAD_K * spec.style_value("head")
     for key in ("robe", "skin", "armor", "neon"):
-        _shrink_into(m[key], tmp[key], c, hx, hy, HEAD_CHIN_Y, HEAD_K)
+        _shrink_into(m[key], tmp[key], c, hx, hy, HEAD_CHIN_Y, head_k)
     out = []
     for src in (brow, lash, iris, glint, neck_shadow, over):
         dst = Mask(w, FH)
-        _shrink_into(dst, src, c, hx, hy, HEAD_CHIN_Y, HEAD_K)
+        _shrink_into(dst, src, c, hx, hy, HEAD_CHIN_Y, head_k)
         out.append(dst)
     return tuple(out)
 
@@ -1141,7 +1225,7 @@ def darken(color, factor=0.55):
             round(color[2] * factor), color[3])
 
 
-def _draw_outline(cv, layers):
+def _draw_outline(cv, layers, width=1):
     """Обводит силуэт и внутренние стыки.
 
     Без контура формы просто обрывались в фон — это и давало «векторный
@@ -1166,9 +1250,9 @@ def _draw_outline(cv, layers):
         acc = m if acc is None else _union(acc, m)
 
     for i, (m, ramp) in enumerate(layers):
-        if m is None:
+        if m is None or width <= 0:
             continue
-        ring = contour(m, 1)
+        ring = contour(m, width)
         cover = above[i]
         if cover is not None:
             for y in range(ring.h):
@@ -1215,6 +1299,9 @@ def _draw(pose, spec, cv, w):
     head_over_material = spec.region_material("head", "robe")
     grip_name = "robe" if spec.arch.get("grip") == "wrap" else "armor"
     grip = spec.region_material("hands", grip_name)
+    # Стиль задаёт, КАК нарисован боец: сколько полос света и какой контур.
+    bands = int(spec.style_value("bands"))
+    outline_width = int(spec.style_value("outline"))
 
     # Порядок = порядок наложения:
     #   дальний план -> ткань -> кожа -> козырёк капюшона -> броня -> черты лица.
@@ -1226,20 +1313,20 @@ def _draw(pose, spec, cv, w):
     dark = mat_ramp(body)[2]
     far_tone = mat_ramp(body)[1]
     far_ramp = (far_tone, dark, dark)
-    cel_fill(cv, far, far_ramp, depth_scale=0.8)
-    cel_fill(cv, robe, body, depth_scale=1.0)
+    cel_fill(cv, far, far_ramp, depth_scale=0.8, bands=bands)
+    cel_fill(cv, robe, body, depth_scale=1.0, bands=bands)
 
     # Тень руки ложится на торс ДО заливки самой руки.
     contact_shadow(cv, arm, robe, darken(dark, 0.8))
 
-    cel_fill(cv, arm, arms, depth_scale=0.95)
-    cel_fill(cv, skin, mats["skin"], depth_scale=0.6)
-    cel_fill(cv, head_over, head_over_material, depth_scale=0.9)
+    cel_fill(cv, arm, arms, depth_scale=0.95, bands=bands)
+    cel_fill(cv, skin, mats["skin"], depth_scale=0.6, bands=bands)
+    cel_fill(cv, head_over, head_over_material, depth_scale=0.9, bands=bands)
     # Кисть: у «обмоточных» архетипов (TETRAX, WRAITH) она тканевая и
     # заливается цветом рясы, у остальных — броневая. Стальная кисть в
     # капюшоне читалась светлым пятном и спорила с лицом за внимание.
-    cel_fill(cv, armor, shoulders, depth_scale=0.8)
-    cel_fill(cv, armor_arm, grip, depth_scale=0.85)
+    cel_fill(cv, armor, shoulders, depth_scale=0.8, bands=bands)
+    cel_fill(cv, armor_arm, grip, depth_scale=0.85, bands=bands)
 
     # --- Плащ: под корпусом, но над дальним планом ---
     # Контур плаща рисуется здесь же, а не общим списком слоёв: добавление
@@ -1247,7 +1334,7 @@ def _draw(pose, spec, cv, w):
     # сверху» и меняет чужие обводки. Плацу это не важно — он и так под всем.
     cape_material = spec.region_material("cape", "robe")
     if (spec.outfit or {}).get("cape") or spec.shape("cape") != "none":
-        cel_fill(cv, cape, cape_material, depth_scale=0.75)
+        cel_fill(cv, cape, cape_material, depth_scale=0.75, bands=bands)
         paint(cv, contour(cape, 1), darken(mat_ramp(cape_material)[2]))
 
     # --- Форма одежды: голое место заливается кожей поверх ---
@@ -1256,10 +1343,10 @@ def _draw(pose, spec, cv, w):
     sleeve = spec.shape("sleeve")
     if sleeve != "long":
         if sleeve == "none":
-            cel_fill(cv, arm_upper, mats["skin"], depth_scale=0.6)
-        cel_fill(cv, arm_fore, mats["skin"], depth_scale=0.6)
+            cel_fill(cv, arm_upper, mats["skin"], depth_scale=0.6, bands=bands)
+        cel_fill(cv, arm_fore, mats["skin"], depth_scale=0.6, bands=bands)
     if spec.shape("pants") == "short":
-        cel_fill(cv, bare, mats["skin"], depth_scale=0.6)
+        cel_fill(cv, bare, mats["skin"], depth_scale=0.6, bands=bands)
     if spec.shape("belt") not in ("thin", "none"):
         # Пояс рисуется тоном ткани со сдвигом в тень: он должен читаться как
         # ремень, но оставаться частью одежды, а не чужой деталью поверх.
@@ -1272,14 +1359,14 @@ def _draw(pose, spec, cv, w):
                                         ("feet", boots, 0.8, grip_name)):
         material = spec.region_material(slot, fallback)
         if (spec.outfit or {}).get(slot) and material is not grip:
-            cel_fill(cv, mask, material, depth_scale=depth)
+            cel_fill(cv, mask, material, depth_scale=depth, bands=bands)
 
     _draw_outline(cv, [
         (far, far_ramp), (robe, mat_ramp(body)), (arm, mat_ramp(arms)),
         (skin, mat_ramp(mats["skin"])),
         (head_over, mat_ramp(head_over_material)), (armor, mat_ramp(shoulders)),
         (armor_arm, mat_ramp(grip)),
-    ])
+    ], width=outline_width)
 
     # Складки ткани на торсе и бедре. На голой ноге складок быть не должно —
     # рисуются они только там, где ткань есть.
@@ -1324,10 +1411,13 @@ def head_extent(spec):
     box, c = HEAD_BOX, HEAD_BOX // 2
     tmp = {k: Mask(box, FH) for k in ("robe", "skin", "armor", "neon")}
     parts = HEAD_BUILDERS[spec.arch["head"]](tmp, c, c, box)
+    # Высота головы считается с тем же коэффициентом, каким она нарисована,
+    # иначе стиль с крупной головой получал бы «рост в головах» по старой.
+    head_k = HEAD_K * spec.style_value("head")
     # Высота считается по координатам ужатого изображения, а не по маске:
     # маска отсекает отрицательные координаты, и после сдвига в ноль
     # половина головы уходила за борт (получалось 12 px вместо 23).
-    ys = [int(round((y - c) * HEAD_K))
+    ys = [int(round((y - c) * head_k))
           for m in list(tmp.values()) + list(parts)
           for y in range(m.h) for x in range(m.w) if m.has(x, y)]
     return (max(ys) - min(ys) + 1) if ys else 0
@@ -1394,6 +1484,7 @@ class CharSpec:
     arch: dict
     outfit: dict = None
     shapes: dict = None
+    style: dict = None
 
     @staticmethod
     def from_json(hero_id, data, base=None):
@@ -1414,6 +1505,7 @@ class CharSpec:
         arch = dict(base.arch) if base else dict(ARCH_DEFAULTS)
         outfit = dict(base.outfit) if (base and base.outfit) else {}
         shapes = dict(base.shapes) if (base and base.shapes) else {}
+        style = dict(base.style) if (base and base.style) else {}
 
         for key, value in (data.get("materials") or {}).items():
             if isinstance(value, dict):
@@ -1428,7 +1520,14 @@ class CharSpec:
         for key, value in (data.get("shapes") or {}).items():
             if key in OUTFIT_SHAPES and value:
                 shapes[key] = value
-        return CharSpec(hero_id, mats, arch, outfit, shapes)
+        for key, value in (data.get("style") or {}).items():
+            if key in STYLE_PARAMS and value is not None:
+                style[key] = value
+        return CharSpec(hero_id, mats, arch, outfit, shapes, style)
+
+    def style_value(self, key):
+        """Параметр стиля; незаданный — историческое значение."""
+        return _style_value(self.style, key)
 
     def shape(self, name):
         """Форма одежды по ключу; незаданная — прежнее значение."""
@@ -1450,6 +1549,8 @@ class CharSpec:
             result["outfit"] = dict(self.outfit)
         if self.shapes:
             result["shapes"] = dict(self.shapes)
+        if self.style:
+            result["style"] = dict(self.style)
         return result
 
     def region_material(self, slot, fallback):
@@ -1629,6 +1730,18 @@ def validate_spec(data: dict, hero_id=None) -> list:
         elif value not in allowed:
             errors.append("форма '%s': '%s' неизвестно, можно %s"
                           % (key, value, ", ".join(allowed)))
+
+    # Стиль: параметр известен движку, значение — число в границах.
+    for key, value in (data.get("style") or {}).items():
+        low, high = STYLE_PARAMS.get(key, (None, None))
+        if low is None:
+            errors.append("параметр стиля '%s' неизвестен, можно: %s"
+                          % (key, ", ".join(STYLE_PARAMS)))
+        elif not isinstance(value, (int, float)):
+            errors.append("стиль '%s': нужно число %g..%g" % (key, low, high))
+        elif not (low <= value <= high):
+            errors.append("стиль '%s': нужно %g..%g, получено %r"
+                          % (key, low, high, value))
     return errors
 
 
@@ -1681,6 +1794,11 @@ def schema_json() -> dict:
             "shapes": OUTFIT_SHAPES,
             "shapeDefaults": OUTFIT_SHAPE_DEFAULTS,
             "sets": outfit_library(),
+        },
+        "style": {
+            "params": {k: list(v) for k, v in STYLE_PARAMS.items()},
+            "defaults": STYLE_DEFAULTS,
+            "library": style_library(),
         },
     }
 

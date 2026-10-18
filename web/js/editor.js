@@ -52,6 +52,13 @@ const SHAPE_VALUES = {
   pads: "подушки", plates: "плиты",
 };
 
+// Параметры стиля.
+const STYLE_NAMES = {
+  head: "голова (× базовой)",
+  bands: "полос света",
+  outline: "толщина контура",
+};
+
 function group(title) {
   const box = document.createElement("div");
   box.className = "group";
@@ -182,6 +189,28 @@ export function renderEditor(root, hooks) {
   }
   parts.push(arch);
 
+  // --- стиль: как именно нарисован боец ---
+  // Стиль — чистые данные, поэтому применяется на клиенте: лишний запрос на
+  // сервер не нужен, движок всё равно получает спецификацию целиком.
+  const style = group("Стиль");
+  const library = schema.style?.library || {};
+  style.append(selectField("образец",
+    ["— свой —", ...Object.keys(library)],
+    store.state.styleName || "— свой —",
+    (value) => hooks.stylePreset(value === "— свой —" ? null : value)));
+
+  const styleParams = store.state.character.style || {};
+  const styleRanges = schema.style?.params || {};
+  const styleDefaults = schema.style?.defaults || {};
+  for (const [key, [min, max]] of Object.entries(styleRanges)) {
+    const step = key === "bands" || key === "outline" ? 1 : 0.05;
+    style.append(slider(STYLE_NAMES[key] || key, { min, max, step },
+      styleParams[key] ?? styleDefaults[key] ?? min,
+      (v) => (step === 1 ? String(v) : v.toFixed(2)),
+      (v) => hooks.style(key, Number(v))));
+  }
+  parts.push(style);
+
   // --- одежда ---
   // Сначала комплект целиком, потом слоты по отдельности: комплект задаёт
   // готовую пару «материал + куда его надеть», а слоты позволяют переставить
@@ -207,11 +236,11 @@ export function renderEditor(root, hooks) {
   // Форма одежды: не цвет, а вид. Значения и подписи берутся из движка.
   const shapes = schema.outfit?.shapes || {};
   const wornShapes = store.state.character.shapes || {};
-  const defaults = schema.outfit?.shapeDefaults || {};
+  const shapeDefaults = schema.outfit?.shapeDefaults || {};
   for (const [key, options] of Object.entries(shapes)) {
     outfit.append(selectField(SHAPE_NAMES[key] || key,
       options.map((value) => [value, SHAPE_VALUES[value] || value]),
-      wornShapes[key] || defaults[key] || options[0],
+      wornShapes[key] || shapeDefaults[key] || options[0],
       (value) => hooks.shape(key, value)));
   }
   parts.push(outfit);

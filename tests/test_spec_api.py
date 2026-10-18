@@ -34,6 +34,12 @@ def section(title):
     print("\n%s" % title)
 
 
+def same_pixels(a, b):
+    """Canvas не умеет сравниваться через ==, поэтому сравниваем пиксели."""
+    return (a.w, a.h) == (b.w, b.h) and all(
+        a.px[y][x] == b.px[y][x] for y in range(a.h) for x in range(a.w))
+
+
 def test_roundtrip():
     section("Спецификация -> JSON -> спецификация (шестеро базовых)")
     for hero in G.HEROES:
@@ -294,6 +300,68 @@ def test_shapes():
         check("комплект %s: формы известны движку" % name, not bad, bad)
 
 
+def test_style():
+    section("Стиль: размер головы, полосы света, толщина контура")
+    check("три параметра стиля", len(G.STYLE_PARAMS) == 3, sorted(G.STYLE_PARAMS))
+    check("значения по умолчанию — прежние",
+          G.STYLE_DEFAULTS == {"head": 1.0, "bands": 3, "outline": 1},
+          G.STYLE_DEFAULTS)
+
+    base = G.char_spec("tetrax")
+    pose = dict(G.ANIMS)["idle"][0]
+    plain = G.render_frame(pose, base)
+    check("пустой стиль = прежняя картинка",
+          same_pixels(G.render_frame(pose, G.CharSpec.from_json("t", {}, base=base)),
+                      plain))
+
+    for key, (low, high) in G.STYLE_PARAMS.items():
+        for value in (low, high):
+            spec = G.CharSpec.from_json("t", {"style": {key: value}}, base=base)
+            drawn = G.render_frame(pose, spec)
+            diff = sum(1 for y in range(plain.h) for x in range(plain.w)
+                       if plain.px[y][x] != drawn.px[y][x])
+            check("%s=%s меняет картинку" % (key, value), diff > 20, diff)
+
+    # Голова должна расти вместе с коэффициентом, и метрика роста — честной.
+    small = G.CharSpec.from_json("t", {"style": {"head": 1.45}}, base=base)
+    heads_small, head_px, _ = G.measure_heads(small)
+    heads_base, head_px_base, _ = G.measure_heads(base)
+    check("крупная голова выше пикселем", head_px > head_px_base,
+          "%d против %d" % (head_px, head_px_base))
+    check("и считается честно: меньше голов в фигуре", heads_small < heads_base,
+          "%.2f против %.2f" % (heads_small, heads_base))
+
+    errors = G.validate_spec({"materials": {}, "arch": {}, "style": {"хвост": 1}})
+    check("неизвестный параметр стиля ловится", any("стиля" in e for e in errors), errors)
+    errors = G.validate_spec({"materials": {}, "arch": {}, "style": {"bands": 99}})
+    check("значение вне границ ловится", any("нужно" in e for e in errors), errors)
+    errors = G.validate_spec({"materials": {}, "arch": {}, "style": {"head": "много"}})
+    check("нечисловой параметр ловится", any("число" in e for e in errors), errors)
+
+    spec = G.CharSpec.from_json("t", {"style": {"bands": 5}}, base=base)
+    check("стиль переживает экспорт в JSON",
+          G.CharSpec.from_json("t", spec.to_json()).style == spec.style)
+
+    for name, entry in G.style_library().items():
+        params = entry.get("params") or {}
+        unknown = [k for k in params if k not in G.STYLE_PARAMS]
+        outside = [k for k, v in params.items() if k in G.STYLE_PARAMS
+                   and not (G.STYLE_PARAMS[k][0] <= v <= G.STYLE_PARAMS[k][1])]
+        check("образец %s: параметры верные" % name,
+              not unknown and not outside, unknown + outside)
+
+    dressed = G.apply_style(base, "chibi")
+    check("образец меняет только стиль",
+          dressed.arch == base.arch and dressed.mats == base.mats)
+    check("образец применён", dressed.style_value("head") == 1.45,
+          dressed.style_value("head"))
+    try:
+        G.apply_style(base, "нет_такого")
+        check("неизвестный образец падает", False)
+    except KeyError:
+        check("неизвестный образец падает", True)
+
+
 def test_bounds():
     section("Границы архетипа не роняют рендер")
     idle = dict(G.ANIMS)["idle"][0]
@@ -333,6 +401,7 @@ def main():
     test_anim_library()
     test_outfits()
     test_shapes()
+    test_style()
     test_bounds()
     test_registry()
     print()

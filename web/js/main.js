@@ -110,7 +110,8 @@ function renderPresets() {
 
 /** Общая точка для кнопок пресетов, undo и загрузки из библиотеки. */
 function loadCharacter(character) {
-  store.set({ character: cloneCharacter(character), metrics: null, outfitSet: null });
+  store.set({ character: cloneCharacter(character), metrics: null,
+              outfitSet: null, styleName: null });
   markSelectedPreset();
   renderPresets();
   refreshControls();
@@ -170,10 +171,38 @@ function applyShape(key, value) {
   refreshPreview(0);
 }
 
+/** Стиль целиком: образец из библиотеки. */
+function applyStylePreset(name) {
+  const character = cloneCharacter(store.state.character);
+  if (!name) {
+    character.style = null;
+  } else {
+    const preset = store.state.schema.style?.library?.[name];
+    if (!preset) return;
+    character.style = { ...preset.params };
+  }
+  store.set({ character, styleName: name, metrics: null });
+  refreshControls();
+  refreshPreview(0);
+  scheduleMeasure();
+}
+
+/** Один параметр стиля: размер головы, полосы света, контур. */
+function applyStyleParam(key, value) {
+  const character = cloneCharacter(store.state.character);
+  character.style = { ...(character.style || {}), [key]: value };
+  store.set({ character, styleName: null, metrics: null });
+  refreshControls();
+  refreshPreview(0);
+  scheduleMeasure();
+}
+
 function refreshControls() {
   renderEditor(el.controls, {
     edit,
     animChange,
+    stylePreset: applyStylePreset,
+    style: applyStyleParam,
     outfitSet: applyOutfitSet,
     outfitSlot: applyOutfitSlot,
     shape: applyShape,
