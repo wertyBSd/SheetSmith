@@ -24,6 +24,7 @@ py char_generator.py --hero tetrax --scale 3    :: превью одного (в
 py char_generator.py --hero all --scale 1       :: ростер-лист со всеми сразу
 py char_generator.py --hero tetrax --write      :: спрайт-лист в out/ (1:1)
 py char_generator.py --characters my.json --hero cipher --write
+py char_generator.py --dump-schema              :: схема описания персонажа (JSON)
 ```
 
 | Флаг | Что делает |
@@ -34,6 +35,7 @@ py char_generator.py --characters my.json --hero cipher --write
 | `--write` | записать спрайт-листы на диск (иначе только превью) |
 | `--out DIR` | куда писать (по умолчанию `./out`) |
 | `--list` | показать персонажей и их архетипы, выйти |
+| `--dump-schema` | вывести границы и варианты описания персонажа, выйти |
 
 Проверено на Python 3.9 / 3.11 / 3.14.
 
@@ -133,6 +135,46 @@ IK — длина конечности держится по построени�
 | палитру/пропорции | `MATERIALS` / `ARCH` вверху файла, либо `characters.json` |
 | пиксельный слой (PNG, маски, масштаб) | `pixelcanvas.py` |
 
+## Программный доступ
+
+Движок импортируется как модуль. Рисование принимает **спецификацию
+персонажа**, а не идентификатор, поэтому два черновика не могут перепутаться
+местами — это то, за что цепляется любой многопользовательский рендер:
+
+```python
+import char_generator as G
+
+spec = G.CharSpec.from_json("cipher", {
+    "materials": {"robe": {"hi": "#2F6B5E", "base": "#1D463E", "dark": "#0F2620"},
+                  "eye": "#7CFFB2", "neon": "#39FF88", "neon_soft": "#14703C"},
+    "arch": {"head": "mask", "torso": "taper", "hand": "claw", "foot": "wedge",
+             "grip": "wrap", "SHOULDER": 24, "WAIST": 17,
+             "ARM": 5, "LEG": 7, "ankle": 0.36},
+})
+
+G.render_frame(dict(G.ANIMS)["punch"][1], spec)   # Canvas 80x128
+G.build_sheet(spec)                               # Canvas 320x768
+G.measure_heads(spec)                             # (5.22, 23, 120) — головы, голова, фигура
+G.spec_warnings(spec)                             # подсказки редактору
+G.validate_spec(data, "cipher")                   # что сломается до рендера
+G.schema_json()                                   # границы и варианты для UI
+```
+
+`CharSpec.to_json()` возвращает описание в формате `characters.json`, поэтому
+всё, что собрано в редакторе, уходит в CLI без конвертации.
+
+## Тесты
+
+```bat
+py tests\test_spec_api.py            :: спецификация, JSON, валидация (секунды)
+py tests\test_parity.py              :: картинка не поехала (6 героев, ~60 с)
+py tests\test_parity.py --update     :: перезаписать эталон
+```
+
+Первый тест отвечает на вопрос «правильно ли движок описывает персонажа»,
+второй — «не поехала ли картинка». Золотая картинка лежит в репозитории, и её
+изменение видно в `git diff` как изменение файла.
+
 ## Структура
 
 ```
@@ -144,7 +186,7 @@ docs/roster.png            ростер шестерых базовых перс
 preview/                   превью (генерируется, в git не попадает)
 out/                       готовые спрайт-листы (генерируется, в git не попадает)
 legacy/                    старая версия 32×48 (силуэт + неон) — справка по позам
-tests/                     golden-тесты: побайтовое сравнение картинки с эталоном
+tests/                     тесты: эталон картинки и проверки API-слоя
 ```
 
 ## Что дальше

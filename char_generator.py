@@ -33,6 +33,7 @@ import json
 import math
 import os
 import sys
+from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -786,7 +787,7 @@ def _shrink_into(dst, src, c, hx, hy, chin, k):
                     chin - int(round((chin - ry) * k)))
 
 
-def build_head(hero, m, hx, hy, w):
+def build_head(spec, m, hx, hy, w):
     """Рисует голову во временный бокс и ужимает до HEAD_K.
 
     Наивная отрисовка давала голову 30 px при росте 128 — это 4.3 головы,
@@ -797,7 +798,7 @@ def build_head(hero, m, hx, hy, w):
     box, c = HEAD_BOX, HEAD_BOX // 2
     tmp = {"robe": Mask(box, FH), "skin": Mask(box, FH),
            "armor": Mask(box, FH), "neon": Mask(box, FH)}
-    brow, lash, iris, glint, neck_shadow, over = HEAD_BUILDERS[ARCH[hero]["head"]](
+    brow, lash, iris, glint, neck_shadow, over = HEAD_BUILDERS[spec.arch["head"]](
         tmp, c, c, box)
     for key in ("robe", "skin", "armor", "neon"):
         _shrink_into(m[key], tmp[key], c, hx, hy, HEAD_CHIN_Y, HEAD_K)
@@ -873,10 +874,10 @@ def draw_leg(cloth, plate, hip, knee, foot, leg, style="boot", shrink=0.0, ankle
         plate.disc(nx, ny, r(0.48))
 
 
-def build_parts(pose, w=FW, hero="tetrax"):
+def build_parts(pose, spec, w=FW):
     """Возвращает маски по слоям и материалам.
 
-    Пропорции, форма торса, кисти, стопы и голова берутся из ARCH[hero]:
+    Пропорции, форма торса, кисти, стопы и голова берутся из спецификации:
     без этого шестеро бойцов отличались бы только цветом.
 
     Ширина `w` передаётся явно: черновой проход рендера рисует на холсте
@@ -885,7 +886,7 @@ def build_parts(pose, w=FW, hero="tetrax"):
     Дальние конечности вынесены в отдельную маску `far`: раньше они попадали
     в общий силуэт и сливались с корпусом — фигура теряла объём.
     """
-    a = ARCH[hero]
+    a = spec.arch
     ARM, LEG = a["ARM"], a["LEG"]
     SHOULDER, WAIST = a["SHOULDER"], a["WAIST"]
     far = Mask(w, FH)
@@ -973,7 +974,7 @@ def build_parts(pose, w=FW, hero="tetrax"):
                (cx - SHOULDER // 2 + 2, top + 2), (cx + SHOULDER // 2 - 2, top + 2)])
 
     brow, lash, iris, glint, neck_shadow, head_over = build_head(
-        hero, {"robe": robe, "skin": skin, "armor": armor, "neon": neon}, hx, hy, w)
+        spec, {"robe": robe, "skin": skin, "armor": armor, "neon": neon}, hx, hy, w)
 
     # Воротник рясы вместо «застёжки»: V-образный вырез от шеи к поясу.
     collar = Mask(w, FH)
@@ -1017,8 +1018,8 @@ def build_parts(pose, w=FW, hero="tetrax"):
             ao, (brow, lash, iris, glint, collar))
 
 
-def render_frame(pose, hero):
-    """Собирает кадр 64x128 с сел-шейдингом и материалами.
+def render_frame(pose, spec):
+    """Собирает кадр 80x128 с сел-шейдингом и материалами.
 
     Сначала — черновой проход на холсте с запасом по бокам. Иначе измерить
     вылет нечем: Canvas.set молча отбрасывает пиксели за границей, и
@@ -1028,14 +1029,14 @@ def render_frame(pose, hero):
     подаётся назад — это попутно даёт правильную анимацию, а не обрезку.
     """
     probe_w = FW + 2 * PAD
-    probe = _draw(shift_pose(pose, PAD), hero, Canvas(probe_w, FH), probe_w)
+    probe = _draw(shift_pose(pose, PAD), spec, Canvas(probe_w, FH), probe_w)
     lo, hi = _opaque_span(probe)
     dx = 0
     if lo < 1:
         dx = 1 - lo
     elif hi > FW - 2:
         dx = (FW - 2) - hi
-    return _draw(shift_pose(pose, dx), hero, Canvas(FW, FH), FW)
+    return _draw(shift_pose(pose, dx), spec, Canvas(FW, FH), FW)
 
 # Запас по бокам чернового прохода. 24 px с каждой стороны перекрывает
 # любой реальный вылет: самый длинный мах ногой уходил на ~20 px за кадр.
@@ -1046,7 +1047,7 @@ def _opaque_span(cv):
     """Границы непрозрачных пикселей в координатах исходной позы.
 
     Сканирование идёт построчно, поэтому брать «первый» и «последний»
-    непрозрачный пиксель нельзя: это верх стр��ки, а не крайние точки
+    непрозрачный пиксель нельзя: это верх строки, а не крайние точки
     силуэта. Считаем честный минимум и максимум по x.
     """
     xs = [x - PAD for y in range(cv.h) for x in range(cv.w) if cv.px[y][x][3] > 0]
@@ -1118,10 +1119,10 @@ def contact_shadow(canvas, caster, receiver, color, ox=1, oy=2):
     paint(canvas, shadow, color)
 
 
-def _draw(pose, hero, cv, w):
-    mats = MATERIALS[hero]
+def _draw(pose, spec, cv, w):
+    mats = spec.mats
     (far, robe, skin, armor, neon, head_over, neck_shadow, arm, armor_arm,
-     ao, face) = build_parts(pose, w, hero)
+     ao, face) = build_parts(pose, spec, w)
     brow, lash, iris, glint, collar = face
 
     # Порядок = порядок наложения:
@@ -1147,7 +1148,7 @@ def _draw(pose, hero, cv, w):
     # Кисть: у «обмоточных» архетипов (TETRAX, WRAITH) она тканевая и
     # заливается цветом рясы, у остальных — броневая. Стальная кисть в
     # капюшоне читалась светлым пятном и спорила с лицом за внимание.
-    grip = mats["robe"] if ARCH[hero].get("grip") == "wrap" else mats["armor"]
+    grip = mats["robe"] if spec.arch.get("grip") == "wrap" else mats["armor"]
     cel_fill(cv, armor_arm, grip, depth_scale=0.85)
 
     _draw_outline(cv, [
@@ -1189,7 +1190,7 @@ def _draw(pose, hero, cv, w):
 
     return cv
 
-def head_extent(hero):
+def head_extent(spec):
     """Высота головы в пикселях кадра — по её маскам, а не по силуэту.
 
     По силуэту мерить нельзя: у шлемных бойцов (SENTINEL, OVERLORD, BRUTE)
@@ -1198,7 +1199,7 @@ def head_extent(hero):
     """
     box, c = HEAD_BOX, HEAD_BOX // 2
     tmp = {k: Mask(box, FH) for k in ("robe", "skin", "armor", "neon")}
-    parts = HEAD_BUILDERS[ARCH[hero]["head"]](tmp, c, c, box)
+    parts = HEAD_BUILDERS[spec.arch["head"]](tmp, c, c, box)
     # Высота считается по координатам ужатого изображения, а не по маске:
     # маска отсекает отрицательные координаты, и после сдвига в ноль
     # половина головы уходила за борт (получалось 12 px вместо 23).
@@ -1208,7 +1209,7 @@ def head_extent(hero):
     return (max(ys) - min(ys) + 1) if ys else 0
 
 
-def measure_heads(hero="tetrax", frame=0):
+def measure_heads(spec, frame=0):
     """Реальное число голов: высота фигуры / высота головы.
 
     Раньше печаталось FH / 23.0 — жёстко зашитая константа. Она врала:
@@ -1217,20 +1218,20 @@ def measure_heads(hero="tetrax", frame=0):
 
     Фигура меряется по силуэту (это надёжно), голова — по маскам головы.
     """
-    cv = render_frame(dict(ANIMS)["idle"][frame], hero)
+    cv = render_frame(dict(ANIMS)["idle"][frame], spec)
     rows = [sum(1 for x in range(cv.w) if cv.px[y][x][3] > 0) for y in range(cv.h)]
     top = next(y for y, n in enumerate(rows) if n > 0)
     bot = cv.h - 1 - next(i for i, n in enumerate(reversed(rows)) if n > 0)
     figure = bot - top + 1
-    head_h = head_extent(hero)
+    head_h = head_extent(spec)
     return figure / float(head_h), head_h, figure
 
 
-def build_sheet(hero):
+def build_sheet(spec):
     sheet = Canvas(FW * COLS, FH * ROWS)
     for row, (_name, frames) in enumerate(ANIMS):
         for col, pose in enumerate(frames):
-            sheet.blit(render_frame(pose, hero), col * FW, row * FH)
+            sheet.blit(render_frame(pose, spec), col * FW, row * FH)
     return sheet
 
 
@@ -1238,13 +1239,79 @@ def build_sheet(hero):
 HEROES = ["tetrax", "matrix", "overlord", "sentinel", "wraith", "brute"]
 
 
-# --- Слой конфигурации: персонажи данными, а не кодом -----------------------
-# Встроенные MATERIALS/ARCH — источник истины для шести базовых персонажей.
-# characters.json может ДОБАВИТЬ новых и ПЕРЕОПРЕДЕЛИТЬ существующих: это
-# делает доработку генератора безопасной — правки палитры не трогают код
-# отрисовки.
+# --- Спецификация персонажа --------------------------------------------------
+# Персонаж = палитра + архетип. Раньше это были два глобальных словаря,
+# а отрисовка ходила в них по id: MATERIALS[hero], ARCH[hero]. Для CLI это
+# удобно, для сервера — ловушка: два параллельных запроса с разными
+# черновиками перетирают друг другу состояние, и один из них получит чужую
+# картинку. Поэтому всё рисование принимает CharSpec — самодостаточный
+# снимок персонажа, — а словари остались только реестром и источником
+# истины для базовых шестерых.
 
-def _material_from_json(data: dict) -> dict:
+@dataclass(frozen=True)
+class CharSpec:
+    """Снимок персонажа: id + палитра (движковый формат) + архетип.
+
+    `frozen` запрещает подменять поля, но не делает внутренние словари
+    копиями: они остаются общими с реестром. Это осознанно — сборка листа
+    шести раз подряд не должна каждый раз копировать палитры.
+    """
+    id: str
+    mats: dict
+    arch: dict
+
+    @staticmethod
+    def from_json(hero_id, data, base=None):
+        """Собирает спецификацию из формата characters.json.
+
+        Мержит поверх `base`, а если он не задан — поверх персонажа с тем же
+        id из реестра. Отсюда документированное поведение: перечислил
+        `{"neon": "#B04CFF"}` — получил того же бойца с другим неоном;
+        не перечислил ничего — получил его целиком.
+
+        Неизвестный id берёт нейтральный архетип (SENTINEL) за основу:
+        палитру угадать нельзя, а пропорции безопасно заполнить значениями
+        по умолчанию, иначе render упал бы на KeyError посреди работы.
+        """
+        if base is None:
+            base = char_spec(hero_id) if hero_id in ARCH and hero_id in MATERIALS else None
+        mats = dict(base.mats) if base else {}
+        arch = dict(base.arch) if base else dict(ARCH_DEFAULTS)
+
+        for key, value in (data.get("materials") or {}).items():
+            if isinstance(value, dict):
+                mats[key] = mat_from_json(value)
+            else:
+                mats[key] = hex_rgba(value)
+        arch.update({k: v for k, v in (data.get("arch") or {}).items()
+                     if k in ARCH_DEFAULTS})
+        return CharSpec(hero_id, mats, arch)
+
+    def to_json(self):
+        """Обратно в формат characters.json — файл можно скормить CLI."""
+        return {
+            "materials": {k: (mat_to_json(v) if k in MAT_KEYS else _hex(v))
+                          for k, v in self.mats.items() if k in MAT_KEYS + COLOR_KEYS},
+            "arch": {k: self.arch[k] for k in ARCH_DEFAULTS if k in self.arch},
+        }
+
+    def register(self):
+        """Кладёт персонажа в реестр MATERIALS/ARCH/HEROES (нужно CLI)."""
+        MATERIALS[self.id] = self.mats
+        ARCH[self.id] = self.arch
+        if self.id not in HEROES:
+            HEROES.append(self.id)
+        return self
+
+
+def char_spec(hero_id) -> CharSpec:
+    """Спецификация персонажа из реестра. Единственный мост id -> рисование."""
+    if hero_id not in ARCH or hero_id not in MATERIALS:
+        raise KeyError("неизвестный персонаж: %s" % hero_id)
+    return CharSpec(hero_id, MATERIALS[hero_id], ARCH[hero_id])
+
+
+def mat_from_json(data: dict) -> dict:
     """Собирает материал из описания вида mat(hi, base, dark, spec, ...)."""
     spec = data.get("spec")
     return mat(
@@ -1253,8 +1320,180 @@ def _material_from_json(data: dict) -> dict:
     )
 
 
+def mat_to_json(m: dict) -> dict:
+    """Движковый материал -> {"hi","base","dark","spec","spec_lam","spec_glow"}.
+
+    spec_lam/spec_glow читаются прямо из материала, а не через mat_spec():
+    тот возвращает нули, если блика нет, и параметры блика терялись бы при
+    обратной сборке — материал без блика, но с его характеристиками приехал
+    бы в CLI с другими значениями по умолчанию.
+    """
+    hi, base, dark = mat_ramp(m)
+    return {"hi": _hex(hi), "base": _hex(base), "dark": _hex(dark),
+            "spec": _hex(m["spec"]) if m["spec"] else None,
+            "spec_lam": m["spec_lam"], "spec_glow": m["spec_glow"]}
+
+
+def _hex(color) -> str:
+    return "#%02X%02X%02X" % (color[0], color[1], color[2])
+
+
+# Ключи материалов: с рампой (три тона + блик) и просто цвета.
+MAT_KEYS = ("robe", "armor", "skin")
+COLOR_KEYS = ("eye", "neon", "neon_soft")
+
+# Архетип: перечисления для UI и границы чисел. Это единственное место, где
+# описаны варианты и диапазоны: и валидация, и схема для сайта берутся отсюда,
+# поэтому «движок умеет mask, а форма предлагает helm» исключено.
+ARCH_VARIANTS = {
+    "head": ["hood", "visor", "monocle", "helm", "mask", "spike"],
+    "torso": ["taper", "box", "wide"],
+    "hand": ["fist", "hammer", "claw"],
+    "foot": ["boot", "wedge", "block"],
+    "grip": ["wrap", "plate"],
+}
+
+# Границы подобраны по значениям базовых шестерых (SHOULDER 22..34) с запасом:
+# за ними фигура либо выходит за кадр, либо рассыпается на пиксели.
+ARCH_RANGES = {
+    "SHOULDER": (14, 40), "WAIST": (10, 34),
+    "ARM": (3, 14), "LEG": (4, 18), "ankle": (0.10, 0.95),
+}
+
+# Характер блика: spec_lam — насколько узкая его площадь, spec_glow — как он
+# гаснет в глубине формы.
+SPEC_RANGES = {"spec_lam": (0.0, 1.0), "spec_glow": (0.0, 1.0)}
+
+# Нейтральный архетип для нового персонажа: ровно SENTINEL — «эталон»,
+# с которым сравниваются остальные.
+ARCH_DEFAULTS = dict(head="helm", torso="taper", hand="fist", foot="boot",
+                     grip="plate", SHOULDER=26, WAIST=20, ARM=6, LEG=8, ankle=0.36)
+
+
+def validate_spec(data: dict, hero_id=None) -> list:
+    """Проверяет описание персонажа -> список сообщений (пустой = годен).
+
+    Ловит ровно то, обо что спотывается рендер: неизвестный вид головы,
+    ключ вне ARCH_DEFAULTS, число вне границ, отсутствующий материал.
+
+    `hero_id` меняет строгость: для существующего персонажа проверяются
+    только перечисленные ключи — остальные наследуются, ровно как в
+    CharSpec.from_json. Для нового требуются все.
+    """
+    errors = []
+    materials = data.get("materials") or {}
+    arch = data.get("arch") or {}
+    known = hero_id is not None and hero_id in ARCH and hero_id in MATERIALS
+
+    for key in MAT_KEYS:
+        if key not in materials:
+            if not known:
+                errors.append("нет материала '%s'" % key)
+        elif not isinstance(materials[key], dict):
+            errors.append("материал '%s': нужен объект с hi/base/dark" % key)
+        else:
+            for tone in ("hi", "base", "dark"):
+                if tone not in materials[key]:
+                    errors.append("материал '%s': нет тона '%s'" % (key, tone))
+    for key in COLOR_KEYS:
+        if key not in materials and not known:
+            errors.append("нет цвета '%s'" % key)
+    for key, allowed in ARCH_VARIANTS.items():
+        value = arch.get(key)
+        if value is None:
+            if not known:
+                errors.append("нет архетипа '%s'" % key)
+        elif value not in allowed:
+            errors.append("архетип '%s': '%s' неизвестен, можно %s"
+                          % (key, value, ", ".join(allowed)))
+    for key, (lo, hi) in list(ARCH_RANGES.items()) + list(SPEC_RANGES.items()):
+        value = arch.get(key) if key in ARCH_RANGES else _spec_param(materials, key)
+        if value is None:
+            continue
+        if not isinstance(value, (int, float)) or not (lo <= value <= hi):
+            errors.append("'%s': нужно %g..%g, получено %r" % (key, lo, hi, value))
+    return errors
+
+
+def _spec_param(materials, key):
+    """Ищет spec_lam/spec_glow в материалах, где они и живут."""
+    for mat_name in MAT_KEYS:
+        value = (materials.get(mat_name) or {}).get(key)
+        if isinstance(value, (int, float)):
+            return value
+    return None
+
+
+def schema_json() -> dict:
+    """Машиночитаемое описание того, чем можно описать персонажа.
+
+    Отдаётся сайтом фронтенку, чтобы контролы и типы TypeScript собирались
+    из данных движка, а не из скопированной вручную копии.
+    """
+    return {
+        "frame": {"w": FW, "h": FH, "cols": COLS, "rows": ROWS},
+        "anims": [{"name": name, "frames": len(frames)} for name, frames in ANIMS],
+        "arch": {
+            "variants": ARCH_VARIANTS,
+            "ranges": {k: list(v) for k, v in ARCH_RANGES.items()},
+            "defaults": ARCH_DEFAULTS,
+        },
+        "materials": {
+            "ramp": list(MAT_KEYS),
+            "color": list(COLOR_KEYS),
+            "spec": {k: list(v) for k, v in SPEC_RANGES.items()},
+        },
+    }
+
+
+def _luma(color) -> float:
+    r, g, b = color[0] / 255.0, color[1] / 255.0, color[2] / 255.0
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _distance(a, b) -> float:
+    return sum((a[i] - b[i]) ** 2 for i in range(3)) ** 0.5
+
+
+def spec_warnings(spec) -> list:
+    """Подсказки редактору: что в персонаже читается плохо.
+
+    Только дешёвые проверки по данным, без рендера: рост в головах считается
+    отдельно (measure_heads рисует кадр). Каждая проверка откалибрована так,
+    чтобы шестеро базовых персонажей проходили молча — предупреждение,
+    которое горит на эталонном наборе, учат игнорировать.
+
+    Принимает недозаполненный черновик (у нового персонажа палитры может
+    ещё не быть): отсутствующие материалы пропускаются, а не роняют
+    проверку — редактор зовёт её на каждом движении слайдера.
+    """
+    out = []
+    for key in MAT_KEYS:
+        material = spec.mats.get(key)
+        if material is None:
+            continue
+        hi, base, dark = mat_ramp(material)
+        if not (_luma(hi) > _luma(base) > _luma(dark)):
+            out.append("%s: тона не лежат по светлоте (свет > тон > тень)" % key)
+
+    eye, neon, neon_soft = (spec.mats.get(k) for k in COLOR_KEYS)
+    # Близкий к неону глаз — норма для этого стиля (светящийся визор в тон
+    # подсветке), поэтому правило срабатывает только на полном совпадении.
+    if eye and neon and _distance(eye, neon) < 8:
+        out.append("глаз и неон одного цвета — глаз потеряется в подсветке")
+    if neon and neon_soft and _distance(neon, neon_soft) < 60:
+        out.append("неон и приглушённый неон слишком близки — контур не читается")
+
+    arch = spec.arch
+    if arch.get("SHOULDER") is not None and arch["SHOULDER"] <= arch.get("WAIST", 0):
+        out.append("плечи не шире талии — силуэт сужается кверху")
+    if arch.get("ARM") is not None and arch["ARM"] * 3 > arch.get("SHOULDER", 99):
+        out.append("рука толще трети плеча — исчезнет зазор между рукой и корпусом")
+    return out
+
+
 def load_characters(path: str) -> list:
-    """Читает characters.json и мержит персонажей в MATERIALS/ARCH/HEROES.
+    """Читает characters.json и кладёт персонажей в реестр MATERIALS/ARCH/HEROES.
 
     Формат файла:
         {"characters": {"<id>": {"materials": {...}, "arch": {...}}}}
@@ -1269,21 +1508,7 @@ def load_characters(path: str) -> list:
         data = json.load(fh)
     touched = []
     for hero_id, spec in (data.get("characters") or {}).items():
-        mats = {}
-        for mat_name, value in (spec.get("materials") or {}).items():
-            if isinstance(value, dict):
-                mats[mat_name] = _material_from_json(value)
-            else:
-                mats[mat_name] = hex_rgba(value)
-        if mats:
-            MATERIALS.setdefault(hero_id, {}).update(mats)
-        arch = spec.get("arch")
-        if arch:
-            base_arch = dict(ARCH.get(hero_id, {}))
-            base_arch.update(arch)
-            ARCH[hero_id] = base_arch
-        if hero_id not in HEROES:
-            HEROES.append(hero_id)
+        CharSpec.from_json(hero_id, spec).register()
         touched.append(hero_id)
     return touched
 
@@ -1294,22 +1519,21 @@ def list_characters() -> None:
         a = ARCH.get(hero, {})
         mats = MATERIALS.get(hero, {})
         neon = mats.get("neon")
-        neon_hex = "#%02X%02X%02X" % (neon[0], neon[1], neon[2]) if neon else "—"
+        neon_hex = _hex(neon) if neon else "—"
         print("  %-12s голова=%-8s торс=%-6s кисть=%-7s стопа=%-6s неон=%s"
               % (hero, a.get("head", "?"), a.get("torso", "?"),
                  a.get("hand", "?"), a.get("foot", "?"), neon_hex))
 
 
-def build_roster(scale=2):
-    """Один лист со всеми шестью: ряд — боец, внутри — его спрайт-лист.
+def build_roster(specs, scale=2):
+    """Один лист со всеми: ряд — боец, внутри — его спрайт-лист.
 
-    Нужен, чтобы судить о шестерых как о наборе: по одному бойцу в
-    отдельном окне несопоставимы — не видно, кто с кем конфликтует по
-    силуэту и по светлоте.
+    Нужен, чтобы судить о бойцах как о наборе: по одному в отдельном окне
+    несопоставимы — не видно, кто с кем конфликтует по силуэту и по светлоте.
     """
-    roster = Canvas(FW * COLS * len(HEROES), FH * ROWS)
-    for i, hero in enumerate(HEROES):
-        roster.blit(build_sheet(hero), i * FW * COLS, 0)
+    roster = Canvas(FW * COLS * len(specs), FH * ROWS)
+    for i, spec in enumerate(specs):
+        roster.blit(build_sheet(spec), i * FW * COLS, 0)
     return roster
 
 
@@ -1328,12 +1552,18 @@ def main():
                     help="записать спрайт-листы на диск (иначе только превью)")
     ap.add_argument("--list", action="store_true",
                     help="показать список персонажей и выйти")
+    ap.add_argument("--dump-schema", action="store_true",
+                    help="вывести схему описания персонажа (JSON) и выйти")
     args = ap.parse_args()
 
     root = os.path.dirname(os.path.abspath(__file__))
     if args.characters:
         added = load_characters(os.path.abspath(args.characters))
         print("из %s загружено: %s" % (args.characters, ", ".join(added)))
+
+    if args.dump_schema:
+        print(json.dumps(schema_json(), ensure_ascii=False, indent=2))
+        return
 
     if args.list:
         list_characters()
@@ -1343,21 +1573,25 @@ def main():
     os.makedirs(prev_dir, exist_ok=True)
 
     if args.hero == "all":
-        roster = build_roster()
+        roster = build_roster([char_spec(hero) for hero in HEROES])
         prev = os.path.join(prev_dir, "roster_x%d.png" % args.scale)
         roster.scaled(args.scale).save(prev)
         print("превью состава: %s (%dx%d)" % (prev, roster.w * args.scale, roster.h * args.scale))
     else:
-        if args.hero not in ARCH or args.hero not in MATERIALS:
+        try:
+            spec = char_spec(args.hero)
+        except KeyError:
             print("неизвестный персонаж: %s (см. --list)" % args.hero)
             return
-        sheet = build_sheet(args.hero)
+        sheet = build_sheet(spec)
         prev = os.path.join(prev_dir, "%s_x%d.png" % (args.hero, args.scale))
         sheet.scaled(args.scale).save(prev)
-        heads, head_px, figure_px = measure_heads(args.hero)
+        heads, head_px, figure_px = measure_heads(spec)
         print("превью: %s (%dx%d, кадр %dx%d, %.2f головы: фигура %d px, голова %d px)"
               % (prev, sheet.w * args.scale, sheet.h * args.scale,
                  FW, FH, heads, figure_px, head_px))
+        for warning in spec_warnings(spec):
+            print("  ! %s" % warning)
 
     if args.write:
         out_dir = os.path.abspath(args.out or os.path.join(root, "out"))
@@ -1366,7 +1600,7 @@ def main():
         for hero in names:
             # Имя файла = идентификатор персонажа: движок ищет спрайт по нему.
             path = os.path.join(out_dir, "%s.png" % hero)
-            build_sheet(hero).save(path)
+            build_sheet(char_spec(hero)).save(path)
             print("ассет: %s (%dx%d)" % (path, FW * COLS, FH * ROWS))
 
 

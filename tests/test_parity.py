@@ -50,11 +50,12 @@ def render_sheet(hero):
     Собирается здесь, а не через G.build_sheet(), ради замеров: тесту нужен
     ещё и рост в головах, а build_sheet его не возвращает.
     """
+    spec = G.char_spec(hero)
     sheet = Canvas(G.FW * G.COLS, G.FH * G.ROWS)
     for row, (_name, poses) in enumerate(G.ANIMS):
         for col, pose in enumerate(poses):
-            sheet.blit(G.render_frame(pose, hero), col * G.FW, row * G.FH)
-    heads, head_px, figure_px = G.measure_heads(hero)
+            sheet.blit(G.render_frame(pose, spec), col * G.FW, row * G.FH)
+    heads, head_px, figure_px = G.measure_heads(spec)
     return hero, sheet, (round(heads, 4), head_px, figure_px)
 
 
