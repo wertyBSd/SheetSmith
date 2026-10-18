@@ -248,6 +248,52 @@ def test_outfits():
         check("неизвестный комплект падает", True)
 
 
+def test_shapes():
+    section("Форма одежды: рукав, штаны, плащ, воротник, пояс, наплечники")
+    check("шесть параметров формы", len(G.OUTFIT_SHAPES) == 6, sorted(G.OUTFIT_SHAPES))
+    check("у каждого есть значения", all(len(v) >= 2 for v in G.OUTFIT_SHAPES.values()))
+
+    base = G.char_spec("tetrax")
+    pose = dict(G.ANIMS)["idle"][0]
+    plain = G.render_frame(pose, base)
+
+    for name, values in G.OUTFIT_SHAPES.items():
+        for value in values:
+            spec = G.CharSpec.from_json("tetrax", {"shapes": {name: value}}, base=base)
+            check("%s=%s: форма прочитана" % (name, value), spec.shape(name) == value)
+            try:
+                G.render_frame(pose, spec)
+                drawn = True
+            except Exception as exc:                      # noqa: BLE001
+                drawn = False
+                print("      исключение: %r" % (exc,))
+            check("%s=%s: рендер не падает" % (name, value), drawn)
+
+    # Форма обязана менять картинку, иначе это мёртвый параметр.
+    for name, value in (("sleeve", "none"), ("pants", "short"), ("cape", "long"),
+                        ("collar", "high"), ("belt", "wide"), ("shoulders", "plates")):
+        spec = G.CharSpec.from_json("tetrax", {"shapes": {name: value}}, base=base)
+        dressed = G.render_frame(pose, spec)
+        diff = sum(1 for y in range(plain.h) for x in range(plain.w)
+                   if plain.px[y][x] != dressed.px[y][x])
+        check("%s=%s меняет картинку" % (name, value), diff > 30, diff)
+
+    errors = G.validate_spec({"materials": {}, "arch": {}, "shapes": {"хвост": "long"}})
+    check("неизвестный параметр формы ловится", any("форма" in e for e in errors), errors)
+    errors = G.validate_spec({"materials": {}, "arch": {}, "shapes": {"cape": "banana"}})
+    check("неизвестное значение формы ловится", any("известно" in e for e in errors), errors)
+
+    spec = G.CharSpec.from_json("tetrax", {"shapes": {"cape": "long"}}, base=base)
+    check("форма переживает экспорт в JSON",
+          G.CharSpec.from_json("tetrax", spec.to_json()).shapes == spec.shapes)
+
+    for name, entry in G.outfit_library().items():
+        shapes = entry.get("shapes") or {}
+        bad = [k for k, v in shapes.items()
+               if k not in G.OUTFIT_SHAPES or v not in G.OUTFIT_SHAPES[k]]
+        check("комплект %s: формы известны движку" % name, not bad, bad)
+
+
 def test_bounds():
     section("Границы архетипа не роняют рендер")
     idle = dict(G.ANIMS)["idle"][0]
@@ -286,6 +332,7 @@ def main():
     test_schema()
     test_anim_library()
     test_outfits()
+    test_shapes()
     test_bounds()
     test_registry()
     print()

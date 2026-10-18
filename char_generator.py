@@ -786,8 +786,12 @@ def build_head(spec, m, hx, hy, w):
     return tuple(out)
 
 
-def draw_leg(cloth, plate, hip, knee, foot, leg, style="boot", shrink=0.0, ankle=0.34):
+def draw_leg(cloth, plate, bare, hip, knee, foot, leg, style="boot",
+             shrink=0.0, ankle=0.34, length=1.0):
     """Нога: бедро сужается к колену, икроножная бугрится и сходит к щиколотке.
+
+    `length` — длина штанов: 1.0 до щиколотки, меньше — шорты, и голень уходит
+    в `bare`, который заливает кожа. Дальней ноге `bare` не нужен (там None).
 
     Раньше бедро и голень рисовались limb() — капсулами постоянной ширины, —
     и нога читалась как труба. На пятиголовах фигуре это особенно заметно:
@@ -814,15 +818,40 @@ def draw_leg(cloth, plate, hip, knee, foot, leg, style="boot", shrink=0.0, ankle
     nx, ny = knee
     fx_, fy_ = foot
 
-    # Бедро: от таза к колену.
-    cloth.taper((hx, hy), (nx, ny), r(1.00), r(0.72))
-    cloth.disc(hx, hy, r(0.88))                        # бедро у таза
+    if length >= 1.0:
+        # Бедро: от таза к колену.
+        cloth.taper((hx, hy), (nx, ny), r(1.00), r(0.72))
+        cloth.disc(hx, hy, r(0.88))                        # бедро у таза
 
-    # Голень двумя участками: верхний шире нижнего — это и есть бугор.
-    mid = (nx + (fx_ - nx) * 0.32, ny + (fy_ - ny) * 0.32)
-    cloth.taper((nx, ny), mid, r(0.86), r(0.64))
-    cloth.taper(mid, (fx_, fy_ - 3), r(0.64), r(ankle))
-    cloth.disc(nx, ny, r(0.74))                        # колено сглаживает сгиб
+        # Голень двумя участками: верхний шире нижнего — это и есть бугор.
+        mid = (nx + (fx_ - nx) * 0.32, ny + (fy_ - ny) * 0.32)
+        cloth.taper((nx, ny), mid, r(0.86), r(0.64))
+        cloth.taper(mid, (fx_, fy_ - 3), r(0.64), r(ankle))
+        cloth.disc(nx, ny, r(0.74))                        # колено сглаживает сгиб
+    elif bare is not None:
+        # Шорты: ткань обрывается на середине бедра, голень уходит в `bare` —
+        # её зальёт кожа. В оба слоя рисуется одно и то же, поэтому силуэт и
+        # контур не меняются, меняется только заливка.
+        cut = (hx + (nx - hx) * length, hy + (ny - hy) * length)
+        cloth.taper((hx, hy), cut, r(1.00), r(1.00 - 0.30 * length))
+        cloth.disc(hx, hy, r(0.88))
+        mid = (nx + (fx_ - nx) * 0.32, ny + (fy_ - ny) * 0.32)
+        bare.taper(cut, (nx, ny), r(1.00 - 0.30 * length), r(0.74))
+        bare.taper((nx, ny), mid, r(0.74), r(0.64))
+        bare.taper(mid, (fx_, fy_ - 3), r(0.64), r(ankle))
+        bare.disc(nx, ny, r(0.74))
+    else:
+        # Шорты: ткань обрывается на середине бедра, а голень уходит в `bare` —
+        # её зальёт кожа. Силуэт от этого не меняется (голень рисуется в оба
+        # слоя), меняется только заливка, поэтому контур остаётся прежним.
+        cut = (hx + (nx - hx) * length, hy + (ny - hy) * length)
+        cloth.taper((hx, hy), cut, r(1.00), r(1.00 - 0.30 * length))
+        cloth.disc(hx, hy, r(0.88))
+        mid = (nx + (fx_ - nx) * 0.32, ny + (fy_ - ny) * 0.32)
+        bare.taper((cut[0], cut[1]), (nx, ny), r(1.00 - 0.30 * length), r(0.74))
+        bare.taper((nx, ny), mid, r(0.74), r(0.64))
+        bare.taper(mid, (fx_, fy_ - 3), r(0.64), r(ankle))
+        bare.disc(nx, ny, r(0.74))
 
     if plate is None:
         return          # дальняя нога в тени, броня ей не нужна
@@ -865,6 +894,7 @@ def build_parts(pose, spec, w=FW):
     a = spec.arch
     ARM, LEG = a["ARM"], a["LEG"]
     SHOULDER, WAIST = a["SHOULDER"], a["WAIST"]
+    pants = spec.shape("pants")
     far = Mask(w, FH)
     robe = Mask(w, FH)
     armor = Mask(w, FH)
@@ -876,7 +906,7 @@ def build_parts(pose, spec, w=FW):
     # --- Дальняя нога и рука ---
     # Сапог дальней ноги рисуется в тот же `far`: форма щиколотки должна
     # читаться и в тени, иначе дальняя нога вырождается в тёмную полосу.
-    draw_leg(far, far, pose["hip_b"], pose["knee_b"], pose["foot_b"],
+    draw_leg(far, far, None, pose["hip_b"], pose["knee_b"], pose["foot_b"],
              LEG - 1, a["foot"], shrink=0.6, ankle=a["ankle"])
     far.limb(pose["sh_b"], pose["el_b"], ARM - 2)
     far.limb(pose["el_b"], pose["fist_b"], ARM - 2)
@@ -891,10 +921,15 @@ def build_parts(pose, spec, w=FW):
     # Нога рисуется в две отдельные маски (штаны и сапог) и объединяется обратно
     # с той же тканью, что и раньше: силуэт и контуры остаются прежними, но
     # теперь слот одежды может перекрасить штаны и сапоги по отдельности.
-    legs, boots = Mask(w, FH), Mask(w, FH)
-    draw_leg(legs, boots, pose["hip_f"], pose["knee_f"], pose["foot_f"],
-             LEG, a["foot"], ankle=a["ankle"])
+    legs, boots, bare = Mask(w, FH), Mask(w, FH), Mask(w, FH)
+    draw_leg(legs, boots, bare, pose["hip_f"], pose["knee_f"], pose["foot_f"],
+             LEG, a["foot"], ankle=a["ankle"],
+             length=0.55 if pants == "short" else 1.0)
     robe = _union(robe, legs)
+    # Голень вне штанов — голая кожа. Силуэт она не меняет: рисуется и в ткань,
+    # и в `bare`, поэтому контур остаётся прежним, отличается только заливка.
+    if pants == "short":
+        robe = _union(robe, bare)
     # Наколенник и сапог идут в тот же материал, что и кисть (см. grip): у
     # «обмоточных» архетипов нога тканевая, и стальной наколенник на тёмной
     # рясе читался как наклейка, а не как часть ноги.
@@ -938,12 +973,34 @@ def build_parts(pose, spec, w=FW):
     ao.ellipse(cx + WAIST // 2 - 1, bot - 10, 2, 2)
 
     # Плечевые пластины ловят свет — отдельный материал. Прижаты к силуэту:
-    # вынесенные наружу они читались как крылья.
-    armor.ellipse(cx - SHOULDER // 2 + 5, top + 4, 6, 5)
-    armor.ellipse(cx + SHOULDER // 2 - 5, top + 4, 6, 5)
+    # вынесенные наружу они читались как крылья. Вид задаёт форма одежды.
+    shoulders = spec.shape("shoulders")
+    if shoulders != "none":
+        if shoulders == "plates":
+            armor.ellipse(cx - SHOULDER // 2 + 4, top + 3, 8, 6)
+            armor.ellipse(cx + SHOULDER // 2 - 4, top + 3, 8, 6)
+            armor.ellipse(cx - SHOULDER // 2 + 9, top + 9, 5, 4)
+            armor.ellipse(cx + SHOULDER // 2 - 9, top + 9, 5, 4)
+        else:
+            armor.ellipse(cx - SHOULDER // 2 + 5, top + 4, 6, 5)
+            armor.ellipse(cx + SHOULDER // 2 - 5, top + 4, 6, 5)
     # Пояс — тканевая перевязь, не броня. Броневый пояс давал светлую полосу
     # поперёк живота, которая читалась как отдельная деталь поверх рясы.
-    robe.rect(cx - WAIST // 2 - 1, bot - 8, cx + WAIST // 2 + 1, bot - 4)
+    # Тонкий пояс остаётся частью рясы и не выделяется: перевязь должна быть
+    # тонкой. Остальные формы рисуются отдельной полосой — иначе параметр
+    # «широкий пояс» вообще ничего не менял бы.
+    belt_mask = Mask(w, FH)
+    belt = spec.shape("belt")
+    if belt == "wide":
+        belt_mask.rect(cx - WAIST // 2 - 1, bot - 11, cx + WAIST // 2 + 1, bot - 2)
+    elif belt == "sash":
+        # Перевязь через плечо: диагональная полоса от бедра к противному
+        # плечу. Читается как ремень, а не как второй слой одежды.
+        belt_mask.poly([(cx - WAIST // 2 - 2, bot - 4), (cx - WAIST // 2 + 3, bot - 4),
+                        (cx + SHOULDER // 2 - 1, top + 3), (cx + SHOULDER // 2 - 5, top + 3)])
+    elif belt == "thin":
+        belt_mask.rect(cx - WAIST // 2 - 1, bot - 8, cx + WAIST // 2 + 1, bot - 4)
+    robe = _union(robe, belt_mask)
     # Таз: широкий блок в основании торса. Без него ноги визуально «отходят»
     # от корпуса и вся фигура читается как жердь.
     robe.poly([
@@ -964,10 +1021,19 @@ def build_parts(pose, spec, w=FW):
     brow, lash, iris, glint, neck_shadow, head_over = build_head(
         spec, {"robe": robe, "skin": skin, "armor": armor, "neon": neon}, hx, hy, w)
 
-    # Воротник рясы вместо «застёжки»: V-образный вырез от шеи к поясу.
+    # Воротник. По умолчанию V-образный вырез от шеи к поясу; высокий закрывает
+    # шею до подбородка (капюшон, шлем), шарф добавляет свисающий конец.
     collar = Mask(w, FH)
-    collar.limb((cx - 5, top + 1), (cx - 1, top + 11), 1.2)
-    collar.limb((cx + 5, top + 1), (cx + 1, top + 11), 1.2)
+    collar_kind = spec.shape("collar")
+    if collar_kind == "high":
+        collar.rect(nx - ARM, ny - 3, nx + ARM, ny + 6)
+        collar.limb((nx - ARM, ny + 2), (nx + ARM, ny + 2), 1.0)
+    elif collar_kind == "scarf":
+        collar.rect(nx - ARM - 1, ny - 2, nx + ARM + 1, ny + 5)
+        collar.taper((nx + 1, ny + 4), (nx + 3, ny + 14), 2.0, 1.0)
+    else:
+        collar.limb((cx - 5, top + 1), (cx - 1, top + 11), 1.2)
+        collar.limb((cx + 5, top + 1), (cx + 1, top + 11), 1.2)
 
     # --- Ближняя рука (поверх всего) ---
     # Вынесена в отдельные слои arm/armor_arm: пока рука лежала в общей
@@ -976,6 +1042,13 @@ def build_parts(pose, spec, w=FW):
     arm.limb(pose["sh_f"], pose["el_f"], ARM)
     arm.limb(pose["el_f"], pose["fist_f"], ARM - 1)
     arm.disc(pose["el_f"][0], pose["el_f"][1], ARM - 1)
+    # Плечо и предплечье раздельны: рукав может закрывать их по-разному, а
+    # голая часть заливается кожей поверх, не меняя силуэта и контура.
+    arm_upper = Mask(w, FH)
+    arm_fore = Mask(w, FH)
+    arm_upper.limb(pose["sh_f"], pose["el_f"], ARM)
+    arm_upper.disc(pose["el_f"][0], pose["el_f"][1], ARM - 1)
+    arm_fore.limb(pose["el_f"], pose["fist_f"], ARM - 1)
     # Кисть рисуется отдельно и объединяется обратно: слот «кисти» перекрашивает
     # только её, не трогая наруч.
     hands = Mask(w, FH)
@@ -1001,13 +1074,29 @@ def build_parts(pose, spec, w=FW):
         hands.rect(fx_ - ARM + 1, fy_ + 1, fx_ + ARM - 1, fy_ + 1)
     armor_arm = _union(armor_arm, hands)
 
+    # --- Плащ за спиной ---
+    # Рисуется до корпуса, поэтому ложится ПОД него: край торса остаётся
+    # читаемым, а по бокам плащ торчит наружу и даёт силуэту объём, который
+    # ткань сама по себе не даёт.
+    cape_kind = spec.shape("cape")
+    cape = Mask(w, FH)
+    if cape_kind != "none":
+        hem = pose["hip"][1] + (24 if cape_kind == "long" else 8)
+        cape.poly([
+            (cx - SHOULDER // 2 - 1, top + 1),
+            (cx + SHOULDER // 2 - 1, top + 1),
+            (cx + SHOULDER // 2 + 3, hem),
+            (cx - SHOULDER // 2 - 3, hem),
+        ])
+
     # --- Неоновая отделка рясы ---
     # Пояс не подсвечиваем: он и так тёмный, а неоновая полоса поверх него
     # читалась как двойная линия через грудь. Остаётся один узел на груди.
     neon.disc(cx, top + 13, 2)
 
     return (far, robe, skin, armor, neon, head_over, neck_shadow, arm, armor_arm,
-            ao, (brow, lash, iris, glint, collar), (legs, boots, hands))
+            ao, (brow, lash, iris, glint, collar),
+            (legs, boots, hands, bare, cape, arm_upper, arm_fore, belt_mask))
 
 
 def render_frame(pose, spec):
@@ -1116,7 +1205,7 @@ def _draw(pose, spec, cv, w):
     (far, robe, skin, armor, neon, head_over, neck_shadow, arm, armor_arm,
      ao, face, regions) = build_parts(pose, spec, w)
     brow, lash, iris, glint, collar = face
-    legs, boots, hands = regions
+    legs, boots, hands, bare, cape, arm_upper, arm_fore, belt_mask = regions
 
     # Материалы по слотам одежды. Слот, который не указан, берёт историческое
     # значение — поэтому персонаж без одежды собирается ровно как раньше.
@@ -1152,6 +1241,30 @@ def _draw(pose, spec, cv, w):
     cel_fill(cv, armor, shoulders, depth_scale=0.8)
     cel_fill(cv, armor_arm, grip, depth_scale=0.85)
 
+    # --- Плащ: под корпусом, но над дальним планом ---
+    # Контур плаща рисуется здесь же, а не общим списком слоёв: добавление
+    # слоя в _draw_outline сдвигает для остальных частей индексы «что лежит
+    # сверху» и меняет чужие обводки. Плацу это не важно — он и так под всем.
+    cape_material = spec.region_material("cape", "robe")
+    if (spec.outfit or {}).get("cape") or spec.shape("cape") != "none":
+        cel_fill(cv, cape, cape_material, depth_scale=0.75)
+        paint(cv, contour(cape, 1), darken(mat_ramp(cape_material)[2]))
+
+    # --- Форма одежды: голое место заливается кожей поверх ---
+    # Слой уже в силуэте и в контуре, меняется только цвет: у шорт голень, у
+    # короткого рукава — предплечье и плечо.
+    sleeve = spec.shape("sleeve")
+    if sleeve != "long":
+        if sleeve == "none":
+            cel_fill(cv, arm_upper, mats["skin"], depth_scale=0.6)
+        cel_fill(cv, arm_fore, mats["skin"], depth_scale=0.6)
+    if spec.shape("pants") == "short":
+        cel_fill(cv, bare, mats["skin"], depth_scale=0.6)
+    if spec.shape("belt") not in ("thin", "none"):
+        # Пояс рисуется тоном ткани со сдвигом в тень: он должен читаться как
+        # ремень, но оставаться частью одежды, а не чужой деталью поверх.
+        paint(cv, belt_mask, blend(mat_ramp(body)[1], mat_ramp(body)[2], 0.45))
+
     # --- Слоты одежды поверх основной заливки ---
     # Штаны и сапоги лежат внутри общей маски корпуса, поэтому заливаются
     # сверху и только если слот указывает на другой материал.
@@ -1168,7 +1281,8 @@ def _draw(pose, spec, cv, w):
         (armor_arm, mat_ramp(grip)),
     ])
 
-    # Складки ткани на торсе и бедре.
+    # Складки ткани на торсе и бедре. На голой ноге складок быть не должно —
+    # рисуются они только там, где ткань есть.
     fold = mat_ramp(body)[2]
     cx = pose["chest"][0]
     top = pose["sh_f"][1] - 4
@@ -1188,7 +1302,7 @@ def _draw(pose, spec, cv, w):
 
     # Контровой свет по верхней кромке силуэта.
     union = Mask(w, FH)
-    for m in (far, robe, armor):
+    for m in (far, robe, armor, cape):
         union.union(m)
     rim_light(cv, union, mats["neon_soft"], strength=0.0, y_limit=top + 16)
 
@@ -1279,6 +1393,7 @@ class CharSpec:
     mats: dict
     arch: dict
     outfit: dict = None
+    shapes: dict = None
 
     @staticmethod
     def from_json(hero_id, data, base=None):
@@ -1298,6 +1413,7 @@ class CharSpec:
         mats = dict(base.mats) if base else {}
         arch = dict(base.arch) if base else dict(ARCH_DEFAULTS)
         outfit = dict(base.outfit) if (base and base.outfit) else {}
+        shapes = dict(base.shapes) if (base and base.shapes) else {}
 
         for key, value in (data.get("materials") or {}).items():
             if isinstance(value, dict):
@@ -1309,7 +1425,14 @@ class CharSpec:
         for slot, material in (data.get("outfit") or {}).items():
             if slot in OUTFIT_REGIONS and material:
                 outfit[slot] = material
-        return CharSpec(hero_id, mats, arch, outfit)
+        for key, value in (data.get("shapes") or {}).items():
+            if key in OUTFIT_SHAPES and value:
+                shapes[key] = value
+        return CharSpec(hero_id, mats, arch, outfit, shapes)
+
+    def shape(self, name):
+        """Форма одежды по ключу; незаданная — прежнее значение."""
+        return (self.shapes or {}).get(name) or OUTFIT_SHAPE_DEFAULTS[name]
 
     def to_json(self):
         """Обратно в формат characters.json — файл можно скормить CLI."""
@@ -1325,6 +1448,8 @@ class CharSpec:
                   "arch": {k: self.arch[k] for k in ARCH_DEFAULTS if k in self.arch}}
         if self.outfit:
             result["outfit"] = dict(self.outfit)
+        if self.shapes:
+            result["shapes"] = dict(self.shapes)
         return result
 
     def region_material(self, slot, fallback):
@@ -1390,7 +1515,25 @@ COLOR_KEYS = ("eye", "neon", "neon_soft")
 # Слоты одежды: часть тела -> имя материала из палитры. Незаданный слот берёт
 # материал по старым правилам (см. CharSpec.region_material), поэтому описание
 # без одежды рисуется ровно как раньше.
-OUTFIT_REGIONS = ("body", "arms", "hands", "legs", "feet", "shoulders", "head")
+OUTFIT_REGIONS = ("body", "arms", "hands", "legs", "feet", "shoulders", "head", "cape")
+
+# Форма одежды: не цвет, а вид. Значения по умолчанию дают ровно ту картинку,
+# что была до появления формы (длинный рукав, длинные штаны, без плаща,
+# V-воротник, тонкий пояс, наплечники), поэтому старые описания продолжают
+# рисоваться прежде.
+OUTFIT_SHAPES = {
+    "sleeve": ["long", "short", "none"],
+    "pants": ["long", "short"],
+    "cape": ["none", "short", "long"],
+    "collar": ["v", "high", "scarf"],
+    "belt": ["thin", "wide", "sash", "none"],
+    "shoulders": ["pads", "plates", "none"],
+}
+
+OUTFIT_SHAPE_DEFAULTS = {
+    "sleeve": "long", "pants": "long", "cape": "none",
+    "collar": "v", "belt": "thin", "shoulders": "pads",
+}
 
 # Архетип: перечисления для UI и границы чисел. Это единственное место, где
 # описаны варианты и диапазоны: и валидация, и схема для сайта берутся отсюда,
@@ -1476,6 +1619,16 @@ def validate_spec(data: dict, hero_id=None) -> list:
             errors.append("слот '%s': нужен строковый ключ материала" % slot)
         elif material not in materials and material not in MAT_KEYS and not known:
             errors.append("слот '%s': материала '%s' нет в палитре" % (slot, material))
+
+    # Форма одежды: значение должно быть одним из объявленных движком.
+    for key, value in (data.get("shapes") or {}).items():
+        allowed = OUTFIT_SHAPES.get(key)
+        if allowed is None:
+            errors.append("форма одежды '%s' неизвестна, можно: %s"
+                          % (key, ", ".join(OUTFIT_SHAPES)))
+        elif value not in allowed:
+            errors.append("форма '%s': '%s' неизвестно, можно %s"
+                          % (key, value, ", ".join(allowed)))
     return errors
 
 
@@ -1525,6 +1678,8 @@ def schema_json() -> dict:
         },
         "outfit": {
             "regions": list(OUTFIT_REGIONS),
+            "shapes": OUTFIT_SHAPES,
+            "shapeDefaults": OUTFIT_SHAPE_DEFAULTS,
             "sets": outfit_library(),
         },
     }
@@ -1557,6 +1712,7 @@ def apply_outfit(spec, name):
     return CharSpec.from_json(spec.id, {
         "materials": entry.get("materials") or {},
         "outfit": entry.get("outfit") or {},
+        "shapes": entry.get("shapes") or {},
     }, base=spec)
 
 

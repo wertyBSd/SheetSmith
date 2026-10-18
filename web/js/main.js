@@ -161,8 +161,23 @@ function applyOutfitSlot(slot, material) {
   scheduleMeasure();
 }
 
+/** Форма одежды: длина рукава, плащ, воротник — вид, а не цвет. */
+function applyShape(key, value) {
+  const character = cloneCharacter(store.state.character);
+  character.shapes = { ...(character.shapes || {}), [key]: value };
+  store.set({ character, outfitSet: null, metrics: null });
+  refreshControls();
+  refreshPreview(0);
+}
+
 function refreshControls() {
-  renderEditor(el.controls, { edit, animChange, outfitSet: applyOutfitSet, outfitSlot: applyOutfitSlot });
+  renderEditor(el.controls, {
+    edit,
+    animChange,
+    outfitSet: applyOutfitSet,
+    outfitSlot: applyOutfitSlot,
+    shape: applyShape,
+  });
   renderExport(el.controls, () => store.state);
 }
 

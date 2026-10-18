@@ -27,7 +27,8 @@
         "coat":  {"hi": "#3A4468", "base": "#242B44", "dark": "#141A2A", "spec": null, "spec_lam": 0.95, "spec_glow": 0.0},
         "wraps": {"hi": "#4A5573", "base": "#2E3752", "dark": "#1A2033", "spec": null, "spec_lam": 0.9, "spec_glow": 0.1}
       },
-      "outfit": {"body": "coat", "arms": "coat", "hands": "wraps", "legs": "coat", "feet": "wraps", "head": "coat", "shoulders": "coat"}
+      "outfit": {"body": "coat", "arms": "coat", "hands": "wraps", "legs": "coat", "feet": "wraps", "head": "coat", "shoulders": "coat"},
+      "shapes": {"sleeve": "long", "pants": "long", "cape": "none", "collar": "high", "belt": "thin", "shoulders": "none"}
     },
 
     "street": {
@@ -38,7 +39,8 @@
         "denim":  {"hi": "#4E6A9E", "base": "#2E4468", "dark": "#1A2842", "spec": null, "spec_lam": 0.92, "spec_glow": 0.0},
         "sneak":  {"hi": "#E0E4EC", "base": "#AEB6C4", "dark": "#6E7686", "spec": "#FFFFFF", "spec_lam": 0.6, "spec_glow": 0.5}
       },
-      "outfit": {"body": "jacket", "arms": "jacket", "hands": "sneak", "legs": "denim", "feet": "sneak", "head": "jacket", "shoulders": "jacket"}
+      "outfit": {"body": "jacket", "arms": "jacket", "hands": "sneak", "legs": "denim", "feet": "sneak", "head": "jacket", "shoulders": "jacket"},
+      "shapes": {"sleeve": "long", "pants": "long", "cape": "none", "collar": "v", "belt": "none", "shoulders": "none"}
     },
 
     "knight": {
@@ -49,7 +51,8 @@
         "plate": {"hi": "#B4BECE", "base": "#7E889C", "dark": "#4A5468", "spec": "#EFF4FF", "spec_lam": 0.84, "spec_glow": 0.5},
         "leather": {"hi": "#7E5A3C", "base": "#54392A", "dark": "#301F18", "spec": null, "spec_lam": 0.9, "spec_glow": 0.05}
       },
-      "outfit": {"body": "mail", "arms": "mail", "hands": "leather", "legs": "mail", "feet": "plate", "head": "plate", "shoulders": "plate"}
+      "outfit": {"body": "mail", "arms": "mail", "hands": "leather", "legs": "mail", "feet": "plate", "head": "plate", "shoulders": "plate"},
+      "shapes": {"sleeve": "long", "pants": "long", "cape": "short", "collar": "high", "belt": "wide", "shoulders": "plates"}
     },
 
     "mage": {
@@ -60,7 +63,8 @@
         "trim":  {"hi": "#C8A24E", "base": "#8A6E2E", "dark": "#4E3E18", "spec": "#FFE9A8", "spec_lam": 0.7, "spec_glow": 0.6},
         "boots": {"hi": "#6E5A48", "base": "#443A2E", "dark": "#241E18", "spec": null, "spec_lam": 0.88, "spec_glow": 0.1}
       },
-      "outfit": {"body": "robe", "arms": "robe", "hands": "trim", "legs": "robe", "feet": "boots", "head": "robe", "shoulders": "trim"}
+      "outfit": {"body": "robe", "arms": "robe", "hands": "trim", "legs": "robe", "feet": "boots", "head": "robe", "shoulders": "trim"},
+      "shapes": {"sleeve": "long", "pants": "long", "cape": "long", "collar": "v", "belt": "thin", "shoulders": "none"}
     },
 
     "ninja": {
@@ -70,7 +74,8 @@
         "cloth": {"hi": "#3E4454", "base": "#242A38", "dark": "#12151E", "spec": null, "spec_lam": 0.9, "spec_glow": 0.05},
         "wrap":  {"hi": "#5A6274", "base": "#363C4C", "dark": "#1A1E28", "spec": null, "spec_lam": 0.9, "spec_glow": 0.1}
       },
-      "outfit": {"body": "cloth", "arms": "cloth", "hands": "wrap", "legs": "cloth", "feet": "wrap", "head": "cloth", "shoulders": "cloth"}
+      "outfit": {"body": "cloth", "arms": "cloth", "hands": "wrap", "legs": "cloth", "feet": "wrap", "head": "cloth", "shoulders": "cloth"},
+      "shapes": {"sleeve": "long", "pants": "long", "cape": "none", "collar": "high", "belt": "sash", "shoulders": "none"}
     },
 
     "athlete": {
@@ -82,7 +87,8 @@
         "shoe":  {"hi": "#F0F2F6", "base": "#C8CEDA", "dark": "#8A92A2", "spec": "#FFFFFF", "spec_lam": 0.6, "spec_glow": 0.5},
         "wrap":  {"hi": "#E0E2E8", "base": "#B4B8C4", "dark": "#7E8492", "spec": null, "spec_lam": 0.9, "spec_glow": 0.1}
       },
-      "outfit": {"body": "top", "arms": "top", "hands": "wrap", "legs": "shorts", "feet": "shoe", "head": "top", "shoulders": "top"}
+      "outfit": {"body": "top", "arms": "top", "hands": "wrap", "legs": "shorts", "feet": "shoe", "head": "top", "shoulders": "top"},
+      "shapes": {"sleeve": "none", "pants": "short", "cape": "none", "collar": "v", "belt": "none", "shoulders": "none"}
     },
 
     "work": {
@@ -94,7 +100,8 @@
         "boots": {"hi": "#7E5434", "base": "#4E3422", "dark": "#281C12", "spec": null, "spec_lam": 0.85, "spec_glow": 0.1},
         "gloves": {"hi": "#6E5A3E", "base": "#463824", "dark": "#241C12", "spec": null, "spec_lam": 0.88, "spec_glow": 0.08}
       },
-      "outfit": {"body": "coat", "arms": "coat", "hands": "gloves", "legs": "pants", "feet": "boots", "head": "coat", "shoulders": "coat"}
+      "outfit": {"body": "coat", "arms": "coat", "hands": "gloves", "legs": "pants", "feet": "boots", "head": "coat", "shoulders": "coat"},
+      "shapes": {"sleeve": "long", "pants": "long", "cape": "none", "collar": "scarf", "belt": "thin", "shoulders": "none"}
     },
 
     "coat_navy": {
@@ -106,7 +113,8 @@
         "shoes": {"hi": "#4E3A2E", "base": "#2E221A", "dark": "#16100C", "spec": null, "spec_lam": 0.8, "spec_glow": 0.15},
         "gloves": {"hi": "#7E6E56", "base": "#4E4434", "dark": "#282218", "spec": null, "spec_lam": 0.86, "spec_glow": 0.1}
       },
-      "outfit": {"body": "trench", "arms": "trench", "hands": "gloves", "legs": "trousers", "feet": "shoes", "head": "skin", "shoulders": "trench"}
+      "outfit": {"body": "trench", "arms": "trench", "hands": "gloves", "legs": "trousers", "feet": "shoes", "head": "skin", "shoulders": "trench"},
+      "shapes": {"sleeve": "long", "pants": "long", "cape": "none", "collar": "high", "belt": "thin", "shoulders": "none"}
     },
 
     "mech": {
@@ -116,7 +124,8 @@
         "shell": {"hi": "#7E6E3E", "base": "#544A26", "dark": "#2E2814", "spec": "#E0D08A", "spec_lam": 0.8, "spec_glow": 0.45},
         "joint": {"hi": "#5A5E6E", "base": "#383C48", "dark": "#1E2028", "spec": "#C8CEDA", "spec_lam": 0.82, "spec_glow": 0.4}
       },
-      "outfit": {"body": "shell", "arms": "joint", "hands": "joint", "legs": "joint", "feet": "shell", "head": "shell", "shoulders": "shell"}
+      "outfit": {"body": "shell", "arms": "joint", "hands": "joint", "legs": "joint", "feet": "shell", "head": "shell", "shoulders": "shell"},
+      "shapes": {"sleeve": "short", "pants": "long", "cape": "none", "collar": "v", "belt": "wide", "shoulders": "plates"}
     },
 
     "beach": {
@@ -126,7 +135,8 @@
         "shorts": {"hi": "#E0C24E", "base": "#AE9428", "dark": "#6E5C18", "spec": null, "spec_lam": 0.9, "spec_glow": 0.05},
         "skin":   {"hi": "#E0AE86", "base": "#B98A66", "dark": "#7E5C46", "spec": "#F0CFAE", "spec_lam": 0.6, "spec_glow": 0.95}
       },
-      "outfit": {"body": "skin", "arms": "skin", "hands": "skin", "legs": "skin", "feet": "skin", "head": "skin", "shoulders": "skin"}
+      "outfit": {"body": "skin", "arms": "skin", "hands": "skin", "legs": "skin", "feet": "skin", "head": "skin", "shoulders": "skin"},
+      "shapes": {"sleeve": "none", "pants": "short", "cape": "none", "collar": "v", "belt": "none", "shoulders": "none"}
     }
   }
 }

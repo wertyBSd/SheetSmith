@@ -31,6 +31,25 @@ const SLOT_NAMES = {
   feet: "сапоги",
   shoulders: "наплечники",
   head: "голова",
+  cape: "плащ",
+};
+
+// Форма одежды: ключи английские, подписи человеческие.
+const SHAPE_NAMES = {
+  sleeve: "рукав",
+  pants: "штаны до",
+  cape: "плащ (вид)",
+  collar: "воротник",
+  belt: "пояс",
+  shoulders: "наплечники (вид)",
+};
+
+// Значения формы тоже переводим: в описании они английские, в панели — нет.
+const SHAPE_VALUES = {
+  long: "длинные", short: "короткие", none: "нет",
+  v: "V-образный", high: "высокий", scarf: "шарф",
+  thin: "тонкий", wide: "широкий", sash: "через плечо",
+  pads: "подушки", plates: "плиты",
 };
 
 function group(title) {
@@ -89,11 +108,14 @@ function selectField(label, options, value, onChange) {
   const caption = document.createElement("label");
   caption.textContent = label;
   const select = document.createElement("select");
+  // Опция — либо строка, либо пара [значение, подпись]: значение уходит в
+  // движок как есть, а подпись человек читает.
   for (const option of options) {
+    const [value_, title] = Array.isArray(option) ? option : [option, option];
     const item = document.createElement("option");
-    item.value = option;
-    item.textContent = option;
-    if (option === value) item.selected = true;
+    item.value = value_;
+    item.textContent = title;
+    if (value_ === value) item.selected = true;
     select.append(item);
   }
   select.addEventListener("change", () => onChange(select.value));
@@ -180,6 +202,17 @@ export function renderEditor(root, hooks) {
       worn[slot] || "— как раньше —",
       (value) => hooks.outfitSlot(slot,
         value === "— как раньше —" ? null : value)));
+  }
+
+  // Форма одежды: не цвет, а вид. Значения и подписи берутся из движка.
+  const shapes = schema.outfit?.shapes || {};
+  const wornShapes = store.state.character.shapes || {};
+  const defaults = schema.outfit?.shapeDefaults || {};
+  for (const [key, options] of Object.entries(shapes)) {
+    outfit.append(selectField(SHAPE_NAMES[key] || key,
+      options.map((value) => [value, SHAPE_VALUES[value] || value]),
+      wornShapes[key] || defaults[key] || options[0],
+      (value) => hooks.shape(key, value)));
   }
   parts.push(outfit);
 
