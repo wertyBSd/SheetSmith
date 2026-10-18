@@ -44,7 +44,20 @@ import char_generator as G                       # noqa: E402
 from render import (RenderService, SpecError,    # noqa: E402
                     build_spec, presets)
 
-WEB_DIST = os.path.join(ROOT, "web", "dist")
+WEB_ROOT = os.path.join(ROOT, "web")
+WEB_DIST = os.path.join(WEB_ROOT, "dist")
+
+
+def web_root():
+    """Откуда отдавать интерфейс: сборка, если она есть, иначе исходники.
+
+    Интерфейс написан без сборки (обычные ES-модули), так что `web/` — уже
+    готовый сайт. Но если появится `web/dist` — после перехода на сборку, —
+    победит она: собранное всегда ближе к пользователю.
+    """
+    if os.path.isfile(os.path.join(WEB_DIST, "index.html")):
+        return WEB_DIST
+    return WEB_ROOT
 
 # Какие расширения сервер готов отдать из web/dist.
 STATIC_TYPES = {
@@ -55,6 +68,7 @@ STATIC_TYPES = {
     ".png": "image/png",
     ".json": "application/json; charset=utf-8",
     ".ico": "image/x-icon",
+    ".map": "application/json; charset=utf-8",
 }
 
 # Долгие задачи живут в памяти: сервер локальный, переживать перезапуск ради
@@ -146,6 +160,18 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         # Лог в stdout, но без даты: сервер запускают из окна, где важнее текст.
         sys.stdout.write("  %s\n" % (fmt % args))
+
+    def handle_one_request(self):
+        """Проглатывает разрывы соединений вместо трассировки.
+
+        Браузер закрывает соединение сам — например, когда отменяет уже ненужный
+        запрос превью. Каждый такой разрыв печатал бы пятнадцать строк трейсбека
+        и засорял окно, из которого сервер запущен.
+        """
+        try:
+            BaseHTTPRequestHandler.handle_one_request(self)
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            self.close_connection = True
 
     # --- маршруты ---
 
@@ -291,14 +317,16 @@ class Handler(BaseHTTPRequestHandler):
     # --- статика ---
 
     def _static(self, path):
-        target = os.path.normpath(os.path.join(WEB_DIST, path.lstrip("/")))
-        if not target.startswith(WEB_DIST):
-            return self._error(403, "вне каталога сборки")
-        if path in ("/", "") and not os.path.exists(os.path.join(target, "index.html")):
+        base = web_root()
+        target = os.path.normpath(os.path.join(base, path.lstrip("/")))
+        if not target.startswith(base):
+            return self._error(403, "вне каталога сайта")
+        if path in ("/", "") and not os.path.isfile(os.path.join(target, "index.html")):
             return self._send(200, PLACEHOLDER, "text/html; charset=utf-8")
         if not os.path.isfile(target):
-            # Сборка на одной странице: любой путь без расширения -> index.html.
-            fallback = os.path.join(WEB_DIST, "index.html")
+            # Интерфейс на одной странице: неизвестный путь без расширения
+            # ведёт на index.html, а не в 404.
+            fallback = os.path.join(base, "index.html")
             if os.path.isfile(fallback):
                 target = fallback
             else:

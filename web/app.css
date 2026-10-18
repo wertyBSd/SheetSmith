@@ -1,0 +1,161 @@
+/* SheetSmith: тёмная подложка, чтобы не спорить с цветом пиксель-арта.
+   Превью масштабируется только целыми числами и без сглаживания —
+   иначе пиксель-арт мылится и перестаёт читаться. */
+
+:root {
+  --bg: #101219;
+  --panel: #171a23;
+  --line: #262b38;
+  --text: #d7dce8;
+  --muted: #838da3;
+  --accent: #4fc3f7;
+  --warn: #ffb454;
+  --bad: #ff6b6b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.top h1 { font-size: 16px; margin: 0; letter-spacing: .12em; text-transform: uppercase; }
+
+.status { color: var(--muted); font-size: 12px; }
+.status.error { color: var(--bad); }
+.status.busy { color: var(--accent); }
+
+.layout { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; }
+
+.panel {
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.stage { display: flex; flex-direction: column; min-height: 0; padding: 12px; gap: 10px; }
+
+.anim-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.anim-tabs button,
+.stage-bar button {
+  background: #1e2230;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.anim-tabs button[aria-pressed="true"] { background: var(--accent); color: #08121a; border-color: var(--accent); }
+.stage-bar button:hover, .anim-tabs button:hover { border-color: var(--accent); }
+
+.canvas-wrap { flex: 1; display: grid; place-items: center; overflow: auto; }
+
+/* Шахматка под пиксель-артом: прозрачные пиксели иначе не видны. */
+.frame-box {
+  position: relative;
+  background-color: #1b1e27;
+  background-image:
+    linear-gradient(45deg, #232734 25%, transparent 25%, transparent 75%, #232734 75%),
+    linear-gradient(45deg, #232734 25%, transparent 25%, transparent 75%, #232734 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+  border: 1px solid var(--line);
+  padding: 8px;
+}
+
+.frame-box img { display: block; image-rendering: pixelated; }
+
+.frame-box[data-state="loading"] img { opacity: .35; }
+.frame-box[data-state="error"] img { opacity: .12; }
+
+.spinner {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: .1em;
+}
+
+.frame-box[data-state="loading"] .spinner { display: grid; }
+
+.hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; min-height: 1.4em; }
+.hint.bad { color: var(--bad); }
+.hint.warn { color: var(--warn); }
+
+.stage-bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+.stage-bar label { display: flex; align-items: center; gap: 6px; }
+.stage-bar input, .stage-bar select {
+  background: #1e2230; color: var(--text); border: 1px solid var(--line);
+  border-radius: 4px; padding: 2px 6px; font: inherit;
+}
+.stage-bar input[type="number"] { width: 60px; }
+
+.metrics { margin-left: auto; color: var(--muted); }
+.metrics b { color: var(--text); font-weight: 600; }
+
+/* --- панель --- */
+
+.group { border: 1px solid var(--line); border-radius: 6px; padding: 10px; margin-bottom: 12px; }
+.group > h2 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+
+.preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+.preset {
+  display: grid; gap: 4px; justify-items: center;
+  padding: 6px 2px;
+  background: #1e2230; border: 1px solid var(--line); border-radius: 4px;
+  cursor: pointer; color: var(--text); font: inherit;
+}
+
+.preset:hover { border-color: var(--accent); }
+.preset[aria-pressed="true"] { border-color: var(--accent); background: #24304a; }
+
+.preset .swatch {
+  width: 100%; height: 22px; border-radius: 3px;
+  border: 1px solid #0006;
+  /* три полосы рампы: свет, тон, тень — так же, как рисует движок */
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.preset .swatch i { flex: 1; }
+.preset span { font-size: 10px; color: var(--muted); }
+
+#presets hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0 0; }
+
+.field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; margin-bottom: 6px; }
+.field > label { color: var(--muted); font-size: 12px; }
+.field input[type="range"] { grid-column: 1 / -1; width: 100%; }
+.field .value { font-variant-numeric: tabular-nums; color: var(--text); font-size: 12px; }
+
+.colors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.color-cell { display: grid; gap: 3px; }
+.color-cell label { font-size: 10px; color: var(--muted); }
+.color-cell input[type="color"] {
+  width: 100%; height: 26px; padding: 0; border: 1px solid var(--line);
+  border-radius: 3px; background: none; cursor: pointer;
+}
+
+select { background: #1e2230; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; font: inherit; }
+
+.notice { color: var(--warn); font-size: 12px; margin: 6px 0 0; padding-left: 16px; }
+.notice li { margin: 2px 0; }

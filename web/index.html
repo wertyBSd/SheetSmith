@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SheetSmith — генератор персонажей</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <h1>SheetSmith</h1>
+  <span class="status" id="status">соединение…</span>
+</header>
+
+<main class="layout">
+  <aside class="panel">
+    <div id="presets"></div>
+    <div id="controls"></div>
+    <!-- #presets: список базовых персонажей; #controls: палитра, архетип,
+         пропорции — пересобираются под выбранного героя -->
+  </aside>
+
+  <section class="stage">
+    <div class="anim-tabs" id="tabs"></div>
+    <div class="canvas-wrap">
+      <div class="frame-box" id="preview" data-state="loading">
+        <img id="preview-img" alt="кадр персонажа">
+        <div class="spinner" id="spinner"></div>
+      </div>
+      <p class="hint" id="hint"></p>
+    </div>
+    <div class="stage-bar">
+      <label>Кадр <input type="number" id="frame-input" min="0" max="3" value="0" step="1"></label>
+      <label>Масштаб <select id="scale-input">
+        <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+        <option value="4">4</option><option value="5">5</option>
+      </select></label>
+      <button id="play" type="button">▶ пуск</button>
+      <span class="metrics" id="metrics"></span>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>
