@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import char_generator as G   # noqa: E402
 from pixelcanvas import Canvas   # noqa: E402
+import export as X              # noqa: E402
 
 
 class SpecError(ValueError):
@@ -293,9 +294,13 @@ class RenderService:
         """Готовый набор для игры -> zip-байты.
 
         Внутри: общий спрайт-лист, отдельный PNG на каждое движение, описание
-        персонажа и текст с раскладкой. Играющему обычно нужен либо целый лист
-        (GameMaker, Construct), либо отдельные полоски под каждую анимацию —
-        поэтому в архиве и то, и другое.
+        персонажа, боевые данные и адаптеры под чужие движки. Играющему обычно
+        нужен либо целый лист (GameMaker, Construct), либо отдельные полоски
+        под каждую анимацию — поэтому в архиве и то, и другое.
+
+        Адаптеры (C, Godot, Unity, веб) собираются из одного манифеста, см.
+        export.py: каждый из них сверяется с ним в тестах, поэтому «работает»
+        означает «совпадает с манифестом», а не «написано и не падает».
         """
         started = time.time()
         names = chosen_anims(anims)
@@ -324,6 +329,7 @@ class RenderService:
                     strip.blit(canvas, col * G.FW, 0)
                 archive.writestr("%s/animations/%s.png" % (spec.id, name),
                                  strip.to_png_bytes())
+            X.write_pack(archive, spec, built, G.FW, G.FH, _cols(built))
         meta = {"render_ms": int((time.time() - started) * 1000),
                 "width": 0, "height": 0, "cached": False,
                 "anims": len(built), "frames": total_frames,

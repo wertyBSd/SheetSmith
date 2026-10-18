@@ -2,81 +2,78 @@
 
 > Fighter sprite sheets forged from code.
 
-![Ростер базовых персонажей](docs/roster.png)
+![Base roster](docs/roster.png)
 
-SheetSmith собирает **спрайт-листы боевых персонажей из кода** — без единой
-внешней зависимости, только стандартная библиотека Python. Персонаж описывается
-**данными** (палитра + архетип), а не кодом: движок общий, различаются только
-данные. Шестеро базовых бойцов — в репозитории, любой следующий добавляется
-правкой JSON.
+**Zero dependencies.** No pip, no npm, no build step. Python standard library and
+a browser. If you have Python, you can generate sprites right now.
 
-Проект растёт в две стороны: **движок** (командная строка, уже работает) и
-**сайт-генератор** (редактор с живым превью, ростер, экспорт — в работе, план
-в [PLAN.md](PLAN.md)).
+SheetSmith builds **character sprite sheets from code**. A character is *data*
+(palette + archetype + outfit + style), never code: the engine is shared and only
+the data differs. Six base fighters ship in the repository; the next one is a JSON
+edit.
+
+Built for game developers: the download gives you a sprite sheet, per-frame
+timings, hitboxes, hurtboxes, and ready-made bindings for **C, Godot, Unity and
+the web**.
+
+[Русская версия](docs/README.ru.md)
 
 ---
 
-## Быстрый старт
+## Install
+
+Nothing to install. Clone and run:
 
 ```bat
-py char_generator.py --list                     :: список персонажей
-py char_generator.py --hero tetrax --scale 3    :: превью одного (в preview/)
-py char_generator.py --hero all --scale 1       :: ростер-лист со всеми сразу
-py char_generator.py --hero tetrax --write      :: спрайт-лист в out/ (1:1)
-py char_generator.py --characters my.json --hero cipher --write
-py char_generator.py --dump-schema              :: схема описания персонажа (JSON)
+py char_generator.py --hero tetrax --scale 3
 ```
 
-| Флаг | Что делает |
+That writes a preview PNG to `preview/`. To get the full pack for your game:
+
+```bat
+py server\app.py
+```
+
+then open <http://localhost:8000>.
+
+Requirements: Python 3.9+. Tested on 3.9 / 3.11 / 3.14. Nothing else.
+
+## 60 seconds
+
+**Command line** — a sheet, no server:
+
+```bat
+py char_generator.py --list                     :: list characters
+py char_generator.py --hero tetrax --scale 3    :: one frame, big
+py char_generator.py --hero all --scale 1       :: roster of all six
+py char_generator.py --hero tetrax --write      :: sprite sheet to out/
+py char_generator.py --characters my.json --hero cipher --write
+py char_generator.py --dump-schema              :: the description schema
+```
+
+**Your engine** — get the pack from the web UI, then open the folder for your
+tool (see [Export](#export)):
+
+| you use | open |
 |---|---|
-| `--hero ID` | персонаж; `all` — ростер со всеми. По умолчанию `tetrax` |
-| `--scale N` | во сколько раз увеличить **превью** (сам спрайт-лист всегда 1:1) |
-| `--characters FILE` | JSON с новыми/переопределёнными персонажами |
-| `--write` | записать спрайт-листы на диск (иначе только превью) |
-| `--out DIR` | куда писать (по умолчанию `./out`) |
-| `--list` | показать персонажей и их архетипы, выйти |
-| `--dump-schema` | вывести границы и варианты описания персонажа, выйти |
+| C, C++, raylib, SDL, Godot GDExtension | `<id>/<id>.h` |
+| Godot 4 | `<id>/godot/<id>_frames.tres` + `<id>/godot/combat.gd` |
+| Unity | `<id>/unity/<id>.cs` |
+| Phaser, PixiJS, anything on the web | `<id>/web/animations.json` |
+| GameMaker, Construct, anything else | `<id>/sheet.png` + `<id>/sheetsmith.json` |
 
-Проверено на Python 3.9 / 3.11 / 3.14.
+**Anywhere else** — the manifest is the contract. `sheetsmith.json` says where
+every frame lives in the sheet, how long each frame lasts, and where the hit and
+hurt boxes are. Read it and you are done; the bindings above are conveniences.
 
-## На кого мы целимся
+## What you get
 
-Не «игрушки попроще», а конкретный почерк беат-'эмапа и файтинга. Четыре
-ориентира, по которым выбираются решения движка:
+A frame is **80×128**. The sheet is a grid: one row per animation, one column per
+frame.
 
-| игра | что от неё берём |
-|---|---|
-| **The Friends of Ringo Ishikawa** | рост в головах и карикатурность: персонаж выше и тоньше, чем в бойцах, голова мелкая, силуэт читается с одного взгляда |
-| **Streets of Rage 3** | читаемая одежда и силуэт в движении: персонаж узнаётся по одежде и походке, а не по цвету кожи |
-| **Mortal Kombat II** | боевые данные: у каждого удара своя длительность кадра, своё активное окно и своя зона попадания |
-| **Golden Axe III** | тяжёлые пропорции и вес удара: широкие плечи, крупные кисти, отход длиннее замаха |
+Default pack — 6 animations, 18 frames, 4×6 grid:
 
-Что это значит для кода на практике:
-
-* **Кадр 80×128 и рост ~5 голов** — это Streets of Rage и Golden Axe, то есть
-  битэмап-файтинг. Ringo Ishawa тянет выше и тоньше, значит кадр должен
-  уметь меняться (сейчас `FW, FH` — константы, см. [PLAN.md](PLAN.md) §11).
-* **Тайминги по кадрам, а не fps** — требование Mortal Kombat: замах, активный
-  кадр и отход идут с разной скоростью. В движке это `ms` в
-  [data/animations.json](data/animations.json), а не равномерный цикл.
-* **Хитбоксы и хёртбоксы** — тоже Mortal Kombat: игра должна знать, куда бьёт
-  персонаж и куда по нему можно попасть. Считаются из скелета, поэтому
-  переезжают на любое тело вместе с позами.
-* **Одежда как опознавательный знак** — Streets of Rage: слоты одежды и её
-  форма ([data/outfits.json](data/outfits.json)) сделаны именно для этого.
-* **Вес в анимации** — Golden Axe: отход длиннее замаха, удар с задержкой.
-
-Чего мы **не** делаем: не копируем чужих персонажей, имена, костюмы и
-узнаваемые силуэты. Ориентир — язык (пропорции, вес, читаемость), а не
-содержание. Персонажи SheetSmith — свои, со своей палитрой и историей; иначе
-проект превратится в копирайтский, а не в генератор.
-
-## Что получается
-
-Спрайт-лист **80×128 на кадр, сетка 6 строк × 4 колонки** (18 заполненных кадров,
-6 пустых ячеек прозрачные):
-
-| строка | анимация | кадров |
+| row | animation | frames |
 |---|---|---|
 | 0 | idle | 4 |
 | 1 | punch | 3 |
@@ -85,14 +82,119 @@ py char_generator.py --dump-schema              :: схема описания �
 | 4 | stun | 2 |
 | 5 | slip | 2 |
 
-При каждом запуске печатается **рост в головах** — главная метрика
-пиксель-арта человека. Если у нового персонажа вышло 3.8, значит он либо мелкий,
-либо головы не того размера.
+Every run prints the character's **height in heads** — the main metric of pixel
+art. If a new fighter comes out at 3.8 heads, they are either small or their head
+is the wrong size.
 
-## Как описан персонаж
+## Export
 
-Два словаря. Палитра отвечает за цвет, архетип — за форму: без архетипа все
-бойцы отличаются только цветом и читаются как перекрашенный клон.
+The **"Download pack"** button gives you a zip:
+
+```
+<id>/sheet.png             the whole pack: one row per animation, one column per frame
+<id>/animations/<name>.png the same, one file per animation
+<id>/<id>.json             the character description — the engine reads it back
+<id>/sheetsmith.json       the manifest: frame rects, timings, hit/hurt boxes
+<id>/combat.json           the same combat data on its own
+<id>/<id>.h                C header: timings and boxes as arrays
+<id>/godot/<id>_frames.tres   Godot SpriteFrames with per-frame durations
+<id>/godot/combat.gd          GDScript: `hit_boxes("punch", 1)`
+<id>/unity/<id>.cs            C#: ScriptableObjects and Rect arrays
+<id>/web/animations.json      Phaser / PixiJS animation config
+<id>/README.txt            plain text: rows, frames, what loops
+```
+
+### The manifest
+
+`sheetsmith.json` is the single source of truth. Every binding above is generated
+from it and a test compares each one against it, so the four of them cannot drift
+apart.
+
+```json
+{
+  "schema": "sheetsmith/1",
+  "frame": { "w": 80, "h": 128 },
+  "origin": { "x": 40, "y": 124 },
+  "sheet": { "cols": 4, "rows": 6, "width": 320, "height": 768 },
+  "anims": [{
+    "name": "punch", "row": 1, "frames": 3, "loop": false,
+    "ms": [85, 65, 130], "totalMs": 280,
+    "rects": [{ "x": 0, "y": 128, "w": 80, "h": 128 }, ...],
+    "activeFrames": [1, 2],
+    "hits": [[], [{ "x": 67, "y": 39, "w": 18, "h": 16, "kind": "пуск" }], ...],
+    "hurt": [[{ "x": 29, "y": 3, "w": 24, "h": 24, "kind": "голова" }, ...], ...]
+  }]
+}
+```
+
+Coordinates are **frame pixels**, origin at the top-left corner. `origin` is
+where to put the character's feet on the ground.
+
+### The C header
+
+Cheapest to consume: `#include "tetrax.h"` and you have the timings as arrays.
+
+```c
+#include "tetrax.h"
+
+// duration of frame 2 of "punch"
+int ms = TETRAX_ANIM_MS[1][2];
+
+// hit box of that frame: [x1, y1, x2, y2], right/bottom inclusive
+int start = TETRAX_HIT_INDEX[6][0], count = TETRAX_HIT_INDEX[6][1];
+for (int i = 0; i < count; i++) {
+    int *b = TETRAX_HIT_BOXES[start + i];
+    // b[0], b[1] — top-left; b[2], b[3] — bottom-right, inclusive
+}
+```
+
+Box arrays are flat, ordered anim by anim then frame by frame; `*_INDEX[frame]`
+is `[start, count]`. Hit boxes are **not** clipped to the frame — a strike at
+point-blank range must still reach a neighbour standing close. Hurt boxes *are*
+clipped, because a box hanging outside the sheet looks like a bug in the data.
+
+## Combat data
+
+An animation knows more than "how many frames" — that is enough to *show* a move
+and useless to *play* it. A fighting game needs per-frame durations and needs to
+know where the character strikes and where it can be hit.
+
+```json
+"punch": {
+  "group": "атака", "fps": 12, "loop": false,
+  "ms": [85, 65, 130],
+  "frames": [ /* skeleton operations */ ],
+  "hits": [
+    [],
+    [{"part": "fist_f", "w": 18, "h": 16, "kind": "пуск"}],
+    [{"part": "fist_f", "w": 16, "h": 14, "kind": "удар"}]
+  ]
+}
+```
+
+| field | meaning |
+|---|---|
+| `ms` | milliseconds to hold each frame. Absent → `1000 / fps`, i.e. unchanged from before |
+| `hits` | hit box per frame: `part` is the joint that strikes, `w`/`h` its size, `kind` is the first contact frame (`пуск`) or the follow-through (`удар`) |
+| `loop` | whether to loop |
+
+**A hit box hangs off a joint, not off coordinates.** Punching and kicking are
+the same mechanism with a different `part`, and the box follows the limb on its
+own — so changing the body, the style or the outfit never breaks a move.
+
+**Hurt boxes come from the skeleton**: six zones — head, torso, two arms, two
+legs. Deliberately *not* from the picture: the silhouette changes with outfit and
+style, while the game needs to know where the torso is at all times. The head
+zone takes its radius from the same number the head is drawn with, so a chibi
+gets a chibi-sized zone instead of a hole.
+
+In the editor, the **"boxes"** checkbox draws them over the frame, and the player
+runs on the real timings instead of a flat loop.
+
+## How a character is described
+
+Two dictionaries. The palette is colour, the archetype is shape — without the
+archetype, every fighter differs only in colour and reads as a recoloured clone.
 
 ```json
 {
@@ -100,9 +202,6 @@ py char_generator.py --dump-schema              :: схема описания �
     "cipher": {
       "materials": {
         "robe":  {"hi": "#2F6B5E", "base": "#1D463E", "dark": "#0F2620"},
-        "armor": {"hi": "#7C8C74", "base": "#4E5C4A", "dark": "#2C3529",
-                  "spec": "#DFFFE8", "spec_lam": 0.86, "spec_glow": 0.5},
-        "skin":  {"hi": "#C8A882", "base": "#9A7C5C", "dark": "#64503C"},
         "eye": "#7CFFB2", "neon": "#39FF88", "neon_soft": "#14703C"
       },
       "arch": {
@@ -115,63 +214,137 @@ py char_generator.py --dump-schema              :: схема описания �
 }
 ```
 
-**Палитра.** У каждого материала (`robe` / `armor` / `skin`) три тона
-сел-шейдинга — свет, основной, тень — и необязательный блик: `spec` (цвет),
-`spec_lam` (насколько узкий блик: сталь даёт всполох, кожа — мягкое пятно),
-`spec_glow` (как он гаснет в глубине формы). `eye`, `neon`, `neon_soft` —
-просто цвета.
+`--characters` accepts this file, so anything the editor builds goes straight to
+the CLI. `py char_generator.py --dump-schema` prints the whole schema: every
+field, every range.
 
-**Архетип.**
+## Style
 
-| ключ | варианты | смысл |
+Proportions and palette say **which** fighter this is; style says **how** it is
+drawn.
+
+| parameter | range | default | what it does |
+|---|---|---|---|
+| `head` | 0.6…1.8 | 1.0 | head size: bigger for chibi, smaller for realistic |
+| `bands` | 2…6 | 3 | shading bands: 2 coarse, 3 strict 16-bit, 5–6 soft light |
+| `outline` | 0…2 | 1 | outline thickness in pixels, 0 for none |
+
+```json
+"style": { "head": 1.45, "bands": 3, "outline": 1 }
+```
+
+Three bands is the pixel-art language and gives exactly the tones it always did:
+the light boundaries did not move, the range between them is just split into more
+steps. So a soft style needs neither new colours nor blurring — the interpolation
+runs inside the material's own three tones.
+
+Height in heads is measured with the same coefficient the head is drawn with, so
+a chibi honestly reports 3.7 heads instead of 5.
+
+Six presets in [data/styles.json](data/styles.json): strict 16-bit, chibi,
+cartoon, soft, gritty, flat. Style layers over any character and any outfit: a
+knight drawn in a cartoon style is one line, not a copy of the engine.
+
+## Clothing
+
+Body parts are **slots**, and each slot takes its own material:
+
+| slot | paints | default |
 |---|---|---|
-| `head` | `hood` `visor` `monocle` `helm` `mask` `spike` | построение головы |
-| `torso` | `taper` `box` `wide` | сужается к талии / прямоугольник куртки / широкие плечи |
-| `hand` | `fist` `hammer` `claw` | кулак / кувалда / когти |
-| `foot` | `boot` `wedge` `block` | сапог / плоский клин / плита |
-| `grip` | `wrap` `plate` | кисти в обмотках или в броне |
-| `SHOULDER` `WAIST` | px | ширина плеч и талии |
-| `ARM` `LEG` | px | толщина руки и ноги |
-| `ankle` | 0.32…0.70 | сужение ноги к стопе; 0.7 — почти параллельные ноги |
+| `body` | torso, neck, collar | `robe` |
+| `arms` | arm to the wrist | `robe` |
+| `hands` | fist and cuff | cloth or armour, by grip |
+| `legs` | trousers | `robe` |
+| `feet` | boot and knee pad | cloth or armour, by grip |
+| `shoulders` | pauldrons and plates | `armor` |
+| `head` | hood, helmet, hair | `robe` |
 
-Полный пример с комментариями — в [characters.example.json](characters.example.json).
+```json
+"outfit": {"body": "trench", "legs": "trousers", "feet": "shoes", "head": "skin"}
+```
 
-**Новый персонаж без правки кода.** Неизвестный id → создаётся новый и
-добавляется в ростер; существующий → мержится поверх (чтобы поменять только
-цвет неона у готового бойца, достаточно одной строки). Лишние ключи внутри
-`arch` игнорируются, ключи с подчёркиванием (`_about_ru`) — свободные комментарии.
+Omitting a slot keeps the old value, and a character without clothing renders
+**pixel for pixel as before** — the golden test enforces it.
 
-## Как это устроено
+Ten sets in [data/outfits.json](data/outfits.json): cyber-monk, street racer,
+knight, mage, ninja, athlete, builder, trench, mecha, beach. A set is a palette,
+a slot mapping **and garment shape**; it never touches the archetype, so it
+combines with any body and any colours.
 
-1. тело собирается в **маску** по позе — суставы, сегменты рук и ног;
-2. по маске считается **поле расстояний** до края (chamfer 3-4);
-3. из поля восстанавливается приблизительная **нормаль** поверхности;
-4. свет падает **сверху-слева**, тон выбирается из трёх жёстких полос
-   (highlight / base / shadow) — не градиент: сглаживание убивает язык
-   пиксель-арта;
-5. материалы накладываются по частям: ткань рясы, броня, кожа, неон по контуру;
-6. силуэт обводится затемнённым тоном **своего** материала: чёрный контур на
-   тёмной палитре проваливался бы в фон.
+Garment shape is separate from colour — six parameters:
 
-Анимации описаны точками суставов, поэтому движение правится числами, а не
-перерисовкой: удар качает корпус назад, а мах ногой разворачивает таз. Позы
-задаются **целью кисти или стопы**, промежуточный сустав считается двухзвенной
-IK — длина конечности держится по построению.
+| parameter | values | what changes |
+|---|---|---|
+| `sleeve` | `long` `short` `none` | sleeve length; bare skin fills the gap |
+| `pants` | `long` `short` | full length or mid-thigh |
+| `cape` | `none` `short` `long` | cape behind the torso, drawn under it |
+| `collar` | `v` `high` `scarf` | neckline, closed collar, scarf with a tail |
+| `belt` | `thin` `wide` `sash` `none` | thin wrap, wide belt, over the shoulder |
+| `shoulders` | `pads` `plates` `none` | padded pauldrons, two rows of plates, none |
 
-| хочу | где крутить |
-|---|---|
-| новый вид головы | `head_*` + запись в `HEAD_BUILDERS` |
-| новый вид кисти/стопы/торса | функции в `build_parts` / `_draw` |
-| новую анимацию | `ANIMS` — список поз по строкам листа |
-| новый размер кадра | `FW`, `FH` вверху; `render_frame` сам вписывает позу в кадр |
-| палитру/пропорции | `MATERIALS` / `ARCH` вверху файла, либо `characters.json` |
-| пиксельный слой (PNG, маски, масштаб) | `pixelcanvas.py` |
+## Animations
 
-## Программный доступ
+Animations are **data** in [data/animations.json](data/animations.json), not
+Python functions. A frame is a list of skeleton operations:
 
-Движок импортируется как модуль. Рисование принимает **спецификацию
-персонажа**, а не идентификатор, поэтому два черновика не могут перепутаться
-местами — это то, за что цепляется любой многопользовательский рендер:
+```json
+{"shift": {"parts": ["head", "neck", "chest"], "dx": 0, "dy": 20}}
+{"aim":   {"side": "f", "d": [27, 2], "bend": 1.0}}
+{"step":  {"side": "b", "d": [-5, -1], "bend": 1.0}}
+```
+
+A new animation is a file edit, and one animation works on any body: targets are
+offsets from a reference stance, not absolute frame pixels. Elbow and knee are
+two-bone IK, so limb length holds by construction.
+
+**23 animations** in five groups: idle; movement (walk, run, crouch, jump, fall,
+land, dash); defence (block); attack (jab, cross, hook, uppercut, low_kick,
+round_kick, knee, throw, punch, kick, super); reaction (hit, stun, slip).
+
+Which of them land in the export is up to checkboxes — the sheet is built for the
+chosen set: as many rows as you picked, as many columns as the longest animation.
+
+## Web editor
+
+```bat
+py server\app.py                      :: http://localhost:8000
+py server\app.py --host 0.0.0.0       :: reachable from the LAN
+py server\app.py --jobs 7             :: render in 7 processes
+```
+
+No build step: plain ES modules served as-is, so `py server\app.py` gives a
+working editor immediately.
+
+* archetype variants and slider bounds come from `/api/schema`, not from constants
+  duplicated in the frontend — the engine is the source of truth;
+* stale preview requests are aborted, so dragging a slider never leaves an old
+  frame on screen;
+* the default scale fits the window but stays a whole number — otherwise pixel
+  art goes blurry;
+* height in heads and engine warnings are shown under the frame.
+
+| method | path | what |
+|---|---|---|
+| GET | `/api/health` | alive, cache stats |
+| GET | `/api/schema` | archetype variants, bounds, animation grid |
+| GET | `/api/presets` | the six base characters as descriptions |
+| POST | `/api/preview` | one frame as PNG (`anim`, `frame`, `scale`) |
+| POST | `/api/measure` | height in heads and warnings |
+| POST | `/api/combat` | per-frame timings and hit/hurt boxes |
+| POST | `/api/jobs` | long export (`kind: sheet\|roster\|pack`), returns `jobId` |
+| GET | `/api/jobs/<id>` | progress: `done` of `total` |
+| GET | `/api/jobs/<id>/file` | the finished PNG or zip |
+| POST | `/api/save` | write assets to `out/` and the hero to `characters.local.json` |
+
+Repeated requests for the same frame come from cache instantly, and `--jobs`
+spreads the sheet across processes: on 4 processes it builds about three times
+faster and is **byte for byte** identical to the single-threaded engine.
+
+## Programming access
+
+The engine imports as a module. Drawing takes a **character specification**, not
+an id, so two drafts can never get swapped — that is exactly the bug any
+multi-user renderer hits.
 
 ```python
 import char_generator as G
@@ -186,301 +359,71 @@ spec = G.CharSpec.from_json("cipher", {
 
 G.render_frame(dict(G.ANIMS)["punch"][1], spec)   # Canvas 80x128
 G.build_sheet(spec)                               # Canvas 320x768
-G.measure_heads(spec)                             # (5.22, 23, 120) — головы, голова, фигура
-G.spec_warnings(spec)                             # подсказки редактору
-G.validate_spec(data, "cipher")                   # что сломается до рендера
-G.schema_json()                                   # границы и варианты для UI
+G.anim_timing("punch", spec=spec)                 # ms, hits, hurt
+G.measure_heads(spec)                             # (5.22, 23, 120)
+G.validate_spec(data, "cipher")                   # what breaks, before rendering
+G.schema_json()                                   # bounds and variants for a UI
 ```
 
-`CharSpec.to_json()` возвращает описание в формате `characters.json`, поэтому
-всё, что собрано в редакторе, уходит в CLI без конвертации.
+`CharSpec.to_json()` returns the `characters.json` format, so everything the
+editor builds reaches the CLI with no conversion.
 
-## Тесты
+## Tests
 
 ```bat
-py tests\test_spec_api.py            :: спецификация, JSON, валидация (секунды)
-py tests\test_server.py              :: маршруты, кэш, задачи (~2 мин)
-py tests\test_parity.py              :: картинка не поехала (6 героев, ~60 с)
-py tests\test_parity.py --update     :: перезаписать эталон
+py tests\test_spec_api.py            :: specification, JSON, validation (seconds)
+py tests\test_export.py              :: every binding matches the manifest
+py tests\test_server.py              :: routes, cache, jobs (~2 min)
+py tests\test_parity.py              :: the picture did not drift (6 heroes, ~60 s)
+py tests\test_parity.py --update     :: rewrite the golden images
 ```
 
-Первый тест отвечает на вопрос «правильно ли движок описывает персонажа»,
-второй — «то ли отдаёт сервер», третий — «не поехала ли картинка». Золотая
-картинка лежит в репозитории, и её изменение видно в `git diff` как изменение
-файла. Тест сервера сверяет лист из `/api/jobs/.../file` с эталоном CLI:
-сайт и командная строка обязаны давать одну и ту же картинку.
+The golden images are committed, so any change shows up in `git diff` as a file
+change. `test_server.py` compares the sheet from `/api/jobs/.../file` against the
+CLI golden: the site and the command line must produce the same picture.
 
-## Сайт
+`test_export.py` is the one to read before adding a binding — it compares each
+generated file against the manifest it came from, which is what keeps four
+engines from telling four different stories about the same fighter.
 
-Локальный сервер отдаёт превью кадрами и собирает спрайт-листы. Ни одной
-зависимости: только стандартная библиотека Python, как и у движка.
+## Where this is going
 
-```bat
-py server\app.py                      :: http://localhost:8000
-py server\app.py --host 0.0.0.0       :: доступ из локальной сети
-py server\app.py --jobs 7             :: рендер в 7 процессах (быстрее в разы)
-```
+SheetSmith started as a fighting-game sheet generator, but the goal is wider:
+characters in **different styles** (chibi, cartoon, 16-bit, closer to realistic)
+and **different clothing** (modern to fantasy), for fighting games, beat-'em-ups
+and adventures. Side view first, sprites in volume when mature.
 
-| Метод | Путь | Что делает |
-|---|---|---|
-| GET | `/api/health` | живо ли сервер, что в кэше |
-| GET | `/api/schema` | варианты архетипа, границы, сетка анимаций |
-| GET | `/api/presets` | шестеро базовых персонажей как описания |
-| POST | `/api/preview` | PNG одного кадра (`anim`, `frame`, `scale`) |
-| POST | `/api/measure` | рост в головах + предупреждения |
-| POST | `/api/combat` | тайминги кадров и зоны попадания по движениям |
-| POST | `/api/jobs` | долгий экспорт (`kind: sheet\|roster`), ответ `jobId` |
-| GET | `/api/jobs/<id>` | статус задачи: `done` из `total` |
-| GET | `/api/jobs/<id>/file` | готовый PNG |
-| POST | `/api/save` | записать ассет в `out/` и героя в `characters.local.json` |
+So a character is data (body, archetype, materials, skeleton) and the pixel
+engine is just one consumer of that description. The full analysis — what already
+does not stand in the way, what does, and the order it gets fixed in — is in
+[PLAN.md](PLAN.md).
 
-Ответ `/api/preview` несёт `X-Render-Ms`, `X-Cache` и размеры кадра — видно
-в devtools, оттуда же понятно, что именно тормозит.
+### References
 
-Повторный запрос того же кадра приходит из кэша мгновенно, а `--jobs` раскладывает
-лист по кадрам между процессами: на 4 процессах лист собирается втрое быстрее и
-**побайтово равен** тому, что собирает однопоточный движок.
+Four games set the target. They are references for the **language** — proportions,
+weight of a hit, readability of clothing — not for copying characters, costumes
+or silhouettes.
 
-Сохранённый из сайта герой сразу виден в CLI:
-
-```bat
-py char_generator.py --characters characters.local.json --list
-```
-
-## Интерфейс
-
-Левая колонка — пресеты и контролы (палитра, архетип, пропорции), справа —
-кадр выбранной анимации с плеером. Никакой сборки: обычные ES-модули, которые
-сервер отдаёт как есть, поэтому `py server\app.py` сразу даёт рабочий интерфейс.
-
-* варианты архетипа и границы ползунков берутся из `/api/schema`, а не из
-  констант во фронтенде: движок — источник истины;
-* устаревшие запросы превью отменяются, поэтому быстрое движение ползунка не
-  оставляет на экране старую картинку;
-* масштаб по умолчанию подбирается под окно, но целым числом — иначе
-  пиксель-арт мылится;
-* под кадром показывается рост в головах и предупреждения движка.
-
-## Куда это движется
-
-SheetSmith начинался как генератор спрайт-листов для файтинга, но цель шире:
-персонажи **разных стилей** (чиби, мультяшный, 16-бит, ближе к реализму) и
-**разной одежды** (от современной до фэнтези), для файтинга, битемапа и
-приключенческих игр. На первом этапе — вид сбоку, на зрелом — спрайты в объёме.
-
-Поэтому персонаж описывается данными (тело, архетип, материалы, скелет), а
-пиксельный движок — один из потребителей этого описания. Подробный разбор: что
-уже этому не мешает, что мешает и в каком порядке это правится — в
-[PLAN.md](PLAN.md), раздел «Куда это движется».
-
-## Движения
-
-Анимации описаны **данными** в [data/animations.json](data/animations.json), а не
-функциями Python. Кадр — это список операций над скелетом:
-
-```json
-{"shift": {"parts": ["head", "neck", "chest"], "dx": 0, "dy": 20}}
-{"aim":   {"side": "f", "d": [27, 2], "bend": 1.0}}
-{"step":  {"side": "b", "d": [-5, -1], "bend": 1.0}}
-```
-
-Смысл: новую анимацию добавляет правка файла, а одна и та же анимация
-работает на любом теле — цели задаются смещениями от опорной стойки, а не
-абсолютными пикселями кадра. Локоть и колено считаются двухзвенной IK.
-
-В библиотеке **23 движения** в пяти разделах: покой (idle), движение (walk,
-run, crouch, jump, fall, land, dash), защита (block), атака (jab, cross, hook,
-uppercut, low_kick, round_kick, knee, throw, punch, kick, super) и реакция
-(hit, stun, slip). Какие из них попадут в выгрузку, решают галочки: лист
-строится под выбранный набор — строк столько, сколько движений, колонок
-столько, сколько кадров в самом длинном.
-
-## Выгрузка
-
-Кнопка **«Скачать набор для игры»** отдаёт zip:
-
-```
-<имя>/sheet.png          весь набор: по строке движение, по колонке кадр
-<имя>/animations/*.png   то же отдельным файлом на каждое движение
-<имя>/<имя>.json         описание персонажа — принимается движком
-<имя>/README.txt         раскладка: строки, кадры, что зацикливать
-```
-
-Либо единый спрайт-лист PNG одним файлом — если движку он удобнее целиком.
-
-## Одежда
-
-Раньше персонаж носил `robe` и `armor` — «либо ряса, либо броня», и что надето,
-выводилось из хвата. Теперь части тела разделены на **слоты**, и на каждый слот
-можно назначить свой материал:
-
-| слот | что красит | по умолчанию |
-|---|---|---|
-| `body` | торс, шея, воротник | `robe` |
-| `arms` | рука до кисти | `robe` |
-| `hands` | кисть и наруч | ткань или броня по хвату |
-| `legs` | штаны | `robe` |
-| `feet` | сапог и наколенник | ткань или броня по хвату |
-| `shoulders` | наплечники и плиты | `armor` |
-| `head` | капюшон, шлем, волосы | `robe` |
-
-```json
-"outfit": {"body": "trench", "legs": "trousers", "feet": "shoes", "head": "skin"}
-```
-
-Слот можно и не указывать — тогда он берёт прежнее значение, и персонаж без
-одежды рисуется **пиксель в пиксель как раньше** (это проверяет golden-тест).
-Ноги, сапоги и кисти для этого вынесены в отдельные маски и объединены обратно:
-силуэт и контуры не меняются, меняется только заливка.
-
-В [data/outfits.json](data/outfits.json) — **10 комплектов**: кибер-монах,
-стрит-рейсер, рыцарь, маг, ниндзя, спортсмен, строитель, тренч, мех, пляж.
-Комплект — это палитра, привязка слотов **и форма**; архетип он не трогает,
-поэтому сочетается с любым телом и любыми цветами.
-
-## Форма одежды
-
-Слот отвечает за **цвет**, форма — за **вид**. Шесть параметров:
-
-| параметр | варианты | что меняется |
-|---|---|---|
-| `sleeve` | `long` `short` `none` | длина рукава; открытое место заливается кожей |
-| `pants` | `long` `short` | штаны до щиколотки или до середины бедра |
-| `cape` | `none` `short` `long` | плащ за спиной, рисуется под корпусом |
-| `collar` | `v` `high` `scarf` | воротник: вырез, закрытый горло, шарф с концом |
-| `belt` | `thin` `wide` `sash` `none` | тонкая перевязь, широкий ремень, через плечо |
-| `shoulders` | `pads` `plates` `none` | наплечники-подушки, плиты в два ряда, без них |
-
-```json
-"shapes": {"sleeve": "short", "pants": "long", "cape": "long"}
-```
-
-Значения по умолчанию дают ровно ту картинку, что была до появления формы,
-поэтому старые описания продолжают рисоваться прежде (проверяет golden-тест).
-Голая кожа — не отдельный материал: тот же скин, просто часть тела не закрыта
-одеждой, поэтому рукав и штаны меняют заливку, не меняя силуэта.
-
-Тонкий пояс намеренно не выделяется: перевязь должна быть тонкой, иначе она
-спорит с фигурой. Остальные формы пояса рисуются отдельной полосой.
-
-## Стиль
-
-Пропорции и палитра отвечают за **какой** это боец, стиль — за **как** он
-нарисован. Три параметра:
-
-| параметр | границы | по умолчанию | что делает |
-|---|---|---|---|
-| `head` | 0.6…1.8 | 1.0 | доля головы: больше — чиби, меньше — реалистичная голова |
-| `bands` | 2…6 | 3 | число полос света: 2 грубо, 3 строгий 16-бит, 5–6 мягкий свет |
-| `outline` | 0…2 | 1 | толщина контура в пикселях, 0 — без обводки |
-
-```json
-"style": {"head": 1.45, "bands": 3, "outline": 1}
-```
-
-Три полосы — язык пиксель-арта, и они дают **те же** тона рампы, что были
-раньше: границы света не сдвинулись, промежуток между ними просто делится
-дополнительными шагами. Поэтому «плавный» стиль не требует ни новых цветов,
-ни размытия — интерполяция идёт по трём тонам материала.
-
-Рост в головах считается с тем же коэффициентом, каким нарисована голова, так
-что у чиби честные 3.7 головы, а не 5.
-
-В [data/styles.json](data/styles.json) — **6 образцов**: строгий 16-бит, чиби,
-мультяшный, мягкий, жёсткий, плоский. Стиль накладывается на любого
-персонажа и любую одежду: рыцаря можно нарисовать в мультяшном стиле.
-
-Чего стиль пока не умеет: размер кадра и пропорции тела. Позы заданы в пикселях
-кадра, поэтому другое тело — это другая стойка скелета (`RIG_STANCE`), а не
-параметр.
-
-## Боевые данные
-
-Анимации умеют не только «сколько кадров», но и **как бьют** — этого требует
-файтинг, и без него набор спрайтов годится только для анимации.
-
-```json
-"punch": {
-  "group": "атака", "fps": 12, "loop": false,
-  "ms": [85, 65, 130],
-  "frames": [ /* операции позы */ ],
-  "hits": [
-    [],
-    [{"part": "fist_f", "w": 18, "h": 16, "kind": "пуск"}],
-    [{"part": "fist_f", "w": 16, "h": 14, "kind": "удар"}]
-  ]
-}
-```
-
-| поле | что значит |
+| game | what it sets |
 |---|---|
-| `ms` | сколько миллисекунд держать каждый кадр. Без него делится 1000 на `fps` — а с ним замах (85 мс) короче отхода (130 мс), как в файтинге |
-| `hits` | зона попадания на кадре: `part` — какой сустав бьёт, `w`/`h` — размер, `kind` — «пуск» (первый кадр контакта) или «удар» |
-| `loop` | зацикливать ли движение |
+| The Friends of Ringo Ishikawa | height in heads: taller and thinner, small head, silhouette readable at a glance |
+| Streets of Rage 3 | you recognise the character by clothing and gait, not by skin colour |
+| Mortal Kombat II | per-move timings, its own active window, its own hit box |
+| Golden Axe III | weight: broad shoulders, big fists, recovery longer than the wind-up |
 
-**Хитбокс строится от сустава, а не задаётся координатами.** Удар кулаком и
-удар ногой — одна и та же механика с разным `part`, а зона едет за конечностью
-сама. Поэтому удар не отваливается при смене тела, стиля или одежды — ровно
-то, ради чего позы и вынесены в данные.
+Practically, this means: the frame size has to become a style parameter
+(Ishikawa does not fit in 80×128), height in heads has to be selectable rather
+than a constant (5 for Golden Axe, 6.5 for Ishikawa), and a move's weight comes
+from its timings plus a pose, not from timing alone.
 
-**Хёртбоксы** (куда по персонажу можно попасть) считаются из скелета: шесть
-зон — голова, торс, две руки, две ноги. Из картинки они не берутся намеренно:
-силуэт меняется от одежды и стиля, а игра хочет знать «где торс» всегда. Зона
-головы при этом следует за стилем, иначе удар проходил бы сквозь макушку чиби.
+### Adding a binding
 
-В архиве это лежит отдельным файлом `combat.json` рядом со спрайтами:
+`sheetsmith.json` is the contract; a binding is a function from the manifest to a
+text file. Add it in `server/export.py`, register it in `write_pack`, and extend
+`tests/test_export.py` — which parses the generated file back and compares it
+against the manifest. Generated code is commented in English: it lands in other
+people's repositories.
 
-```json
-{
-  "character": "tetrax", "frame": {"w": 80, "h": 128},
-  "origin": {"x": 40, "y": 124},
-  "anims": {"punch": {"frames": 3, "loop": false, "ms": [85, 65, 130],
-                      "totalMs": 280, "hits": [[], [/*…*/], [/*…*/]],
-                      "hurt": [[/* шесть зон на кадр */]]}}
-}
-```
+## Requirements
 
-Координаты — в пикселях кадра от левого верхнего угла; `origin` — куда
-поставить персонажа на землю. Хитбоксы кадр не обрезает: удар в упор должен
-доставать соседа, стоящего вплотную. В редакторе галка **«зоны»** рисует их
-поверх кадра, а плеер идёт по настоящим таймингам, а не равномерно.
-
-## Структура
-
-```
-char_generator.py          движок: палитры, архетипы, позы, сел-шейдинг, CLI
-pixelcanvas.py             мини-библиотека пиксель-арта (Canvas, Mask, PNG)
-characters.example.json    пример: новый персонаж + переопределение существующего
-data/animations.json      библиотека движений: позы как операции над скелетом
-data/outfits.json          библиотека одежды: комплекты и привязка слотов
-server/app.py              HTTP-сервер сайта (только стандартная библиотека)
-server/render.py           рендер-сервис: кэш кадров, пул процессов, задачи
-PLAN.md                    план сайта-генератора: этапы, API, риски
-docs/roster.png            ростер шестерых базовых персонажей
-preview/                   превью (генерируется, в git не попадает)
-out/                       готовые спрайт-листы (генерируется, в git не попадает)
-legacy/                    старая версия 32×48 (силуэт + неон) — справка по позам
-tests/                     тесты: API-слоя, сервера и эталон картинки
-web/                       интерфейс сайта: index.html + ES-модули, без сборки
-```
-
-## Что дальше
-
-Веб-интерфейс: локальный сервер отдаёт превью, редактор крутит палитру и
-пропорции вживую, ростер хранится в браузере, экспорт — PNG и `characters.json`.
-Подробности, замеры скорости и риски — в [PLAN.md](PLAN.md).
-
-Короткая дорожная карта: golden-тесты → API-слой движка → бэкенд → фронтенд →
-редактор → экспорт → ускорение.
-
-## Требования
-
-Python 3.9+ и больше ничего. PNG пишется своим мини-писателем на `zlib` и
-`struct`, Pillow и numpy не нужны.
-
-## Истоки
-
-Движок вырос из генератора спрайтов для BlockBrawler и вынесен в отдельный
-репозиторий, чтобы править картинку, не трогая игру. В `legacy/` лежит версия
-32×48 — она нужна как справка по позам, новым персонажам идти надо в
-`char_generator.py`.
+Python 3.9 or newer. Standard library only. Nothing to install, ever.

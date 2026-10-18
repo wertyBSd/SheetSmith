@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.join(ROOT, "server"))
 
 from app import Handler                                  # noqa: E402
 from render import RenderService, build_spec              # noqa: E402
+import export as X                                      # noqa: E402
 from png_reader import read_png                           # noqa: E402
 import char_generator as G                                # noqa: E402
 
@@ -276,7 +277,35 @@ def test_pack():
     check("внутри раскладка", "%s/README.txt" % hero in names)
     check("полоска на каждое движение",
           all("%s/animations/%s.png" % (hero, a) in names for a in anims))
-    check("никаких лишних файлов", len(names) == 4 + len(anims), names)
+    check("внутри манифест", X.MANIFEST in names, names)
+    check("адаптеры под чужие движки",
+          all(path in names for path in (
+              "%s/%s.h" % (hero, hero),
+              "%s/godot/%s_frames.tres" % (hero, hero),
+              "%s/godot/combat.gd" % hero,
+              "%s/unity/%s.cs" % (hero, hero),
+              "%s/web/animations.json" % hero)), names)
+    check("никаких лишних файлов", len(names) == 4 + len(anims) + 6, names)
+
+    # Боевые данные в архиве — то, ради чего набор и выгружается для игры.
+    combat = json.loads(archive.read("%s/combat.json" % hero).decode("utf-8"))
+    combat_anims = combat["anims"]
+
+    # Манифест в архиве обязан совпадать с тем, что строится из движка: иначе
+    # подпись сборки и её содержимое могут разойтись, а заметить это нечем.
+    archived = json.loads(archive.read(X.MANIFEST).decode("utf-8"))
+    check("манифест версионирован", archived["schema"] == X.SCHEMA, archived["schema"])
+    check("манифест описывает те же движения",
+          [a["name"] for a in archived["anims"]] == anims,
+          [a["name"] for a in archived["anims"]])
+    check("манифест и combat.json сходятся по таймингам",
+          [a["ms"] for a in archived["anims"]] ==
+          [combat_anims[name]["ms"] for name in anims],
+          [a["ms"] for a in archived["anims"]])
+    check("адаптеры в архиве непустые",
+          all(len(archive.read(path)) > 200 for path in names
+              if path.endswith((".h", ".tres", ".gd", ".cs"))
+              and path != "%s/README.txt" % hero), names)
 
     strip = read_png_file(archive, "%s/animations/jab.png" % hero)
     check("полоска удара — одна строка кадров",
@@ -285,14 +314,12 @@ def test_pack():
     check("раскладка перечисляет движения",
           all(a in readme for a in anims), readme)
 
-    # Боевые данные в архиве — то, ради чего набор и выгружается для игры.
-    combat = json.loads(archive.read("%s/combat.json" % hero).decode("utf-8"))
     check("кадр и точка постановки",
           combat["frame"] == {"w": 80, "h": 128}
           and combat["origin"] == {"x": 40, "y": 124}, combat["frame"])
     check("боевые данные на каждое движение",
-          set(combat["anims"]) == set(anims), list(combat["anims"]))
-    punch = combat["anims"]["jab"]
+          set(combat_anims) == set(anims), list(combat_anims))
+    punch = combat_anims["jab"]
     check("тайминги на каждый кадр", len(punch["ms"]) == punch["frames"], punch["ms"])
     check("сумма совпадает", punch["totalMs"] == sum(punch["ms"]), punch["totalMs"])
     check("зоны попадания есть на каждом кадре",
