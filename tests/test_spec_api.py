@@ -23,8 +23,9 @@ FAILED = []
 
 
 def check(name, condition, detail=""):
-    status = "ок  " if condition else "ПРОВАЛ"
-    print("  %s %s%s" % (status, name, ("  — " + detail) if detail and not condition else ""))
+    status = "ок   " if condition else "ПРОВАЛ"
+    tail = "  — %s" % detail if detail and not condition else ""
+    print("  %s %s%s" % (status, name, tail))
     if not condition:
         FAILED.append(name)
 
@@ -189,6 +190,64 @@ def test_anim_library():
                             G.build_anims(["idle", "walk"])).px) == 2 * G.FH)
 
 
+def test_outfits():
+    section("Слоты одежды и библиотека комплектов")
+    sets = G.outfit_library()
+    check("библиотека не пустая", len(sets) >= 8, len(sets))
+
+    for name, entry in sets.items():
+        slots = entry.get("outfit") or {}
+        unknown = [s for s in slots if s not in G.OUTFIT_REGIONS]
+        check("%s: слоты известны движку" % name, not unknown, unknown)
+        # Слот ссылается либо на материал комплекта, либо на стандартный
+        # материал персонажа (например head -> skin означает «без капюшона»).
+        available = set(entry.get("materials", {})) | set(G.MAT_KEYS)
+        dangling = sorted({m for m in slots.values() if m not in available})
+        check("%s: слоты указывают на существующие материалы" % name,
+              not dangling, dangling)
+        check("%s: есть палитра" % name, bool(entry.get("materials")))
+
+    base = G.char_spec("tetrax")
+    spec = G.apply_outfit(base, "knight")
+    check("архетип не тронут", spec.arch == base.arch)
+    check("глаз и неон не тронуты",
+          G._hex(spec.mats["eye"]) == G._hex(base.mats["eye"])
+          and G._hex(spec.mats["neon"]) == G._hex(base.mats["neon"]))
+    check("материалы комплекта попали в палитру", "mail" in spec.mats)
+    check("слоты на месте", spec.outfit.get("body") == "mail")
+    check("слот отдаёт свой материал",
+          spec.region_material("body", "robe") is spec.mats["mail"])
+    check("незаданный слот берёт запасной",
+          base.region_material("body", "robe") is base.mats["robe"])
+    check("пустой гардероб не меняет описание", base.outfit in (None, {}))
+
+    errors = G.validate_spec({"materials": {}, "arch": {}, "outfit": {"хвост": "robe"}})
+    check("неизвестный слот ловится", any("слот" in e for e in errors), errors)
+    errors = G.validate_spec({"materials": {"a": {"hi": "#111111"}},
+                              "arch": {}, "outfit": {"body": "нет_такого"}})
+    check("слот на несуществующий материал ловится",
+          any("материала" in e for e in errors), errors)
+
+    data = spec.to_json()
+    back = G.CharSpec.from_json("tetrax", data)
+    check("outfit переживает экспорт в JSON", back.outfit == spec.outfit)
+    check("палитра переживает экспорт в JSON", back.mats == spec.mats)
+
+    # Одежда обязана влиять на картинку, иначе слоты — мёртвый код.
+    pose = dict(G.ANIMS)["idle"][0]
+    plain = G.render_frame(pose, base)
+    dressed = G.render_frame(pose, spec)
+    diff = sum(1 for y in range(plain.h) for x in range(plain.w)
+               if plain.px[y][x] != dressed.px[y][x])
+    check("комплект меняет картинку", diff > 200, diff)
+
+    try:
+        G.apply_outfit(base, "нет_такой")
+        check("неизвестный комплект падает", False)
+    except KeyError:
+        check("неизвестный комплект падает", True)
+
+
 def test_bounds():
     section("Границы архетипа не роняют рендер")
     idle = dict(G.ANIMS)["idle"][0]
@@ -226,6 +285,7 @@ def main():
     test_warnings()
     test_schema()
     test_anim_library()
+    test_outfits()
     test_bounds()
     test_registry()
     print()

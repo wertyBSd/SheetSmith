@@ -212,6 +212,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._measure(payload)
             if path == "/api/jobs":
                 return self._create_job(payload)
+            if path == "/api/outfit":
+                return self._outfit(payload)
             if path == "/api/save":
                 return self._save(payload)
         except SpecError as exc:
@@ -300,6 +302,19 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, result, types.get(kind, "application/octet-stream"),
                    {"Content-Disposition":
                     'attachment; filename="%s"' % (name % job_id if "%s" in name else name)})
+
+    def _outfit(self, payload):
+        """Применяет комплект одежды и отдаёт обновлённое описание."""
+        spec = build_spec(payload.get("character") or payload)
+        name = payload.get("outfit")
+        if not name:
+            raise SpecError(["не указан комплект одежды"])
+        try:
+            dressed = G.apply_outfit(spec, name)
+        except KeyError:
+            raise SpecError(["комплект '%s' неизвестен, можно: %s"
+                             % (name, ", ".join(sorted(G.outfit_library())))])
+        self._json(dressed.to_json())
 
     def _save(self, payload):
         """Кладёт ассет в out/ и героя в characters.local.json — мост в CLI."""

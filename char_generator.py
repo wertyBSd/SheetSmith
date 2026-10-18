@@ -887,9 +887,21 @@ def build_parts(pose, spec, w=FW):
     # у «обмоточных» архетипов нога тканевая, и стальной наколенник на
     # тёмной рясе читался как наклейка, а не как часть ноги. Форма стопы
     # при этом остаётся: она видна силуэтом.
-    leg_plate = robe if a["grip"] == "wrap" else armor
-    draw_leg(robe, leg_plate, pose["hip_f"], pose["knee_f"], pose["foot_f"],
+    #
+    # Нога рисуется в две отдельные маски (штаны и сапог) и объединяется обратно
+    # с той же тканью, что и раньше: силуэт и контуры остаются прежними, но
+    # теперь слот одежды может перекрасить штаны и сапоги по отдельности.
+    legs, boots = Mask(w, FH), Mask(w, FH)
+    draw_leg(legs, boots, pose["hip_f"], pose["knee_f"], pose["foot_f"],
              LEG, a["foot"], ankle=a["ankle"])
+    robe = _union(robe, legs)
+    # Наколенник и сапог идут в тот же материал, что и кисть (см. grip): у
+    # «обмоточных» архетипов нога тканевая, и стальной наколенник на тёмной
+    # рясе читался как наклейка, а не как часть ноги.
+    if a["grip"] == "wrap":
+        robe = _union(robe, boots)
+    else:
+        armor = _union(armor, boots)
 
     # --- Торс: форма задана архетипом ---
     cx = pose["chest"][0]
@@ -964,26 +976,30 @@ def build_parts(pose, spec, w=FW):
     arm.limb(pose["sh_f"], pose["el_f"], ARM)
     arm.limb(pose["el_f"], pose["fist_f"], ARM - 1)
     arm.disc(pose["el_f"][0], pose["el_f"][1], ARM - 1)
-    armor_arm.limb((pose["fist_f"][0], pose["fist_f"][1] - 9), pose["fist_f"], ARM)  # наруч
+    # Кисть рисуется отдельно и объединяется обратно: слот «кисти» перекрашивает
+    # только её, не трогая наруч.
+    hands = Mask(w, FH)
+    hands.limb((pose["fist_f"][0], pose["fist_f"][1] - 9), pose["fist_f"], ARM)  # наруч
     fx_, fy_ = pose["fist_f"]
     if a["hand"] == "hammer":
         # Рука-кувалда вместо кисти (GDD §2.3): диск заметно крупнее кулака,
         # без пальцев — это молот, а не рука в перчатке.
-        armor_arm.disc(fx_, fy_, ARM + 2)
-        armor_arm.disc(fx_, fy_, ARM - 1)
+        hands.disc(fx_, fy_, ARM + 2)
+        hands.disc(fx_, fy_, ARM - 1)
     elif a["hand"] == "claw":
         # Когти: тонкие вытянутые когти вместо кулака.
         for i in range(3):
-            armor_arm.limb((fx_ - 2 + i * 3, fy_ + 1), (fx_ - 3 + i * 3, fy_ + ARM + 2), 1.0)
+            hands.limb((fx_ - 2 + i * 3, fy_ + 1), (fx_ - 3 + i * 3, fy_ + ARM + 2), 1.0)
     else:
         # Кисть: кулак + намёк на пальцы. Диск радиусом ARM+1 давал кляксу
         # шире запястья — рука читалась как лопата. Теперь кулак уже локтя,
         # и пальцы короче.
-        armor_arm.disc(fx_, fy_, ARM - 1)
+        hands.disc(fx_, fy_, ARM - 1)
         for i in range(3):
-            armor_arm.rect(fx_ - ARM + 2 + i * 2, fy_ + 2, fx_ - ARM + 2 + i * 2, fy_ + ARM - 1)
+            hands.rect(fx_ - ARM + 2 + i * 2, fy_ + 2, fx_ - ARM + 2 + i * 2, fy_ + ARM - 1)
         # Хват кисти — тёмная линия поперёк, разделяет пальцы от ладони.
-        armor_arm.rect(fx_ - ARM + 1, fy_ + 1, fx_ + ARM - 1, fy_ + 1)
+        hands.rect(fx_ - ARM + 1, fy_ + 1, fx_ + ARM - 1, fy_ + 1)
+    armor_arm = _union(armor_arm, hands)
 
     # --- Неоновая отделка рясы ---
     # Пояс не подсвечиваем: он и так тёмный, а неоновая полоса поверх него
@@ -991,7 +1007,7 @@ def build_parts(pose, spec, w=FW):
     neon.disc(cx, top + 13, 2)
 
     return (far, robe, skin, armor, neon, head_over, neck_shadow, arm, armor_arm,
-            ao, (brow, lash, iris, glint, collar))
+            ao, (brow, lash, iris, glint, collar), (legs, boots, hands))
 
 
 def render_frame(pose, spec):
@@ -1098,8 +1114,18 @@ def contact_shadow(canvas, caster, receiver, color, ox=1, oy=2):
 def _draw(pose, spec, cv, w):
     mats = spec.mats
     (far, robe, skin, armor, neon, head_over, neck_shadow, arm, armor_arm,
-     ao, face) = build_parts(pose, spec, w)
+     ao, face, regions) = build_parts(pose, spec, w)
     brow, lash, iris, glint, collar = face
+    legs, boots, hands = regions
+
+    # Материалы по слотам одежды. Слот, который не указан, берёт историческое
+    # значение — поэтому персонаж без одежды собирается ровно как раньше.
+    body = spec.region_material("body", "robe")
+    arms = spec.region_material("arms", "robe")
+    shoulders = spec.region_material("shoulders", "armor")
+    head_over_material = spec.region_material("head", "robe")
+    grip_name = "robe" if spec.arch.get("grip") == "wrap" else "armor"
+    grip = spec.region_material("hands", grip_name)
 
     # Порядок = порядок наложения:
     #   дальний план -> ткань -> кожа -> козырёк капюшона -> броня -> черты лица.
@@ -1108,34 +1134,42 @@ def _draw(pose, spec, cv, w):
     # иначе капюшон не перекрывает лоб и лицо выглядит лысым.
     # Дальний план берёт на тон светлее чистой тени: при полностью чёрной
     # заливке рука и корпус сливались в одно пятно на уровне бедра.
-    dark = mat_ramp(mats["robe"])[2]
-    far_tone = mat_ramp(mats["robe"])[1]
+    dark = mat_ramp(body)[2]
+    far_tone = mat_ramp(body)[1]
     far_ramp = (far_tone, dark, dark)
     cel_fill(cv, far, far_ramp, depth_scale=0.8)
-    cel_fill(cv, robe, mats["robe"], depth_scale=1.0)
+    cel_fill(cv, robe, body, depth_scale=1.0)
 
     # Тень руки ложится на торс ДО заливки самой руки.
     contact_shadow(cv, arm, robe, darken(dark, 0.8))
 
-    cel_fill(cv, arm, mats["robe"], depth_scale=0.95)
+    cel_fill(cv, arm, arms, depth_scale=0.95)
     cel_fill(cv, skin, mats["skin"], depth_scale=0.6)
-    cel_fill(cv, head_over, mats["robe"], depth_scale=0.9)
-    cel_fill(cv, armor, mats["armor"], depth_scale=0.8)
+    cel_fill(cv, head_over, head_over_material, depth_scale=0.9)
     # Кисть: у «обмоточных» архетипов (TETRAX, WRAITH) она тканевая и
     # заливается цветом рясы, у остальных — броневая. Стальная кисть в
     # капюшоне читалась светлым пятном и спорила с лицом за внимание.
-    grip = mats["robe"] if spec.arch.get("grip") == "wrap" else mats["armor"]
+    cel_fill(cv, armor, shoulders, depth_scale=0.8)
     cel_fill(cv, armor_arm, grip, depth_scale=0.85)
 
+    # --- Слоты одежды поверх основной заливки ---
+    # Штаны и сапоги лежат внутри общей маски корпуса, поэтому заливаются
+    # сверху и только если слот указывает на другой материал.
+    for slot, mask, depth, fallback in (("legs", legs, 1.0, "robe"),
+                                        ("feet", boots, 0.8, grip_name)):
+        material = spec.region_material(slot, fallback)
+        if (spec.outfit or {}).get(slot) and material is not grip:
+            cel_fill(cv, mask, material, depth_scale=depth)
+
     _draw_outline(cv, [
-        (far, far_ramp), (robe, mat_ramp(mats["robe"])), (arm, mat_ramp(mats["robe"])),
+        (far, far_ramp), (robe, mat_ramp(body)), (arm, mat_ramp(arms)),
         (skin, mat_ramp(mats["skin"])),
-        (head_over, mat_ramp(mats["robe"])), (armor, mat_ramp(mats["armor"])),
+        (head_over, mat_ramp(head_over_material)), (armor, mat_ramp(shoulders)),
         (armor_arm, mat_ramp(grip)),
     ])
 
     # Складки ткани на торсе и бедре.
-    fold = mat_ramp(mats["robe"])[2]
+    fold = mat_ramp(body)[2]
     cx = pose["chest"][0]
     top = pose["sh_f"][1] - 4
     inner_fold(cv, robe, cx - 6, top + 12, cx - 4, pose["hip"][1], fold)
@@ -1150,7 +1184,7 @@ def _draw(pose, spec, cv, w):
     paint(cv, iris, mats["eye"])                     # радужка
     paint(cv, glint, hex_rgba("#FFFFFF"))         # блик в зрачке
     paint(cv, lash, hex_rgba("#151A28"))          # ресничная линия
-    paint(cv, brow, mat_ramp(mats["robe"])[2])        # брови, нос, рот
+    paint(cv, brow, mat_ramp(body)[2])               # брови, нос, рот
 
     # Контровой свет по верхней кромке силуэта.
     union = Mask(w, FH)
@@ -1244,6 +1278,7 @@ class CharSpec:
     id: str
     mats: dict
     arch: dict
+    outfit: dict = None
 
     @staticmethod
     def from_json(hero_id, data, base=None):
@@ -1262,6 +1297,7 @@ class CharSpec:
             base = char_spec(hero_id) if hero_id in ARCH and hero_id in MATERIALS else None
         mats = dict(base.mats) if base else {}
         arch = dict(base.arch) if base else dict(ARCH_DEFAULTS)
+        outfit = dict(base.outfit) if (base and base.outfit) else {}
 
         for key, value in (data.get("materials") or {}).items():
             if isinstance(value, dict):
@@ -1270,15 +1306,39 @@ class CharSpec:
                 mats[key] = hex_rgba(value)
         arch.update({k: v for k, v in (data.get("arch") or {}).items()
                      if k in ARCH_DEFAULTS})
-        return CharSpec(hero_id, mats, arch)
+        for slot, material in (data.get("outfit") or {}).items():
+            if slot in OUTFIT_REGIONS and material:
+                outfit[slot] = material
+        return CharSpec(hero_id, mats, arch, outfit)
 
     def to_json(self):
         """Обратно в формат characters.json — файл можно скормить CLI."""
-        return {
-            "materials": {k: (mat_to_json(v) if k in MAT_KEYS else _hex(v))
-                          for k, v in self.mats.items() if k in MAT_KEYS + COLOR_KEYS},
-            "arch": {k: self.arch[k] for k in ARCH_DEFAULTS if k in self.arch},
-        }
+        worn = set((self.outfit or {}).values())
+        materials = {}
+        for key, value in self.mats.items():
+            if key not in MAT_KEYS + COLOR_KEYS and key not in worn:
+                continue
+            # Материалом может быть и новый, из комплекта одежды, поэтому
+            # смотрим на тип значения, а не на имя ключа.
+            materials[key] = mat_to_json(value) if isinstance(value, dict) else _hex(value)
+        result = {"materials": materials,
+                  "arch": {k: self.arch[k] for k in ARCH_DEFAULTS if k in self.arch}}
+        if self.outfit:
+            result["outfit"] = dict(self.outfit)
+        return result
+
+    def region_material(self, slot, fallback):
+        """Материал слота одежды; незаданный слот -> материал по старым правилам.
+
+        `fallback` — имя материала, который слот имеет по умолчанию: кисти и
+        сапоги зависят от хвата, а ноги и корпус по умолчанию одной тканью.
+        Так пустой гардероб совпадает с прежней картинкой, а перечисление
+        слота перекрашивает только его.
+        """
+        key = (self.outfit or {}).get(slot)
+        if key and key in self.mats:
+            return self.mats[key]
+        return self.mats.get(fallback)
 
     def register(self):
         """Кладёт персонажа в реестр MATERIALS/ARCH/HEROES (нужно CLI)."""
@@ -1326,6 +1386,11 @@ def _hex(color) -> str:
 # Ключи материалов: с рампой (три тона + блик) и просто цвета.
 MAT_KEYS = ("robe", "armor", "skin")
 COLOR_KEYS = ("eye", "neon", "neon_soft")
+
+# Слоты одежды: часть тела -> имя материала из палитры. Незаданный слот берёт
+# материал по старым правилам (см. CharSpec.region_material), поэтому описание
+# без одежды рисуется ровно как раньше.
+OUTFIT_REGIONS = ("body", "arms", "hands", "legs", "feet", "shoulders", "head")
 
 # Архетип: перечисления для UI и границы чисел. Это единственное место, где
 # описаны варианты и диапазоны: и валидация, и схема для сайта берутся отсюда,
@@ -1397,6 +1462,20 @@ def validate_spec(data: dict, hero_id=None) -> list:
             continue
         if not isinstance(value, (int, float)) or not (lo <= value <= hi):
             errors.append("'%s': нужно %g..%g, получено %r" % (key, lo, hi, value))
+
+    # Одежда: слот должен быть известен движку, а материал — существовать
+    # либо в палитре персонажа, либо среди стандартных (например слот «голова»
+    # может ссылаться на skin — это «без капюшона»).
+    for slot, material in (data.get("outfit") or {}).items():
+        if slot not in OUTFIT_REGIONS:
+            errors.append("слот одежды '%s' неизвестен, можно: %s"
+                          % (slot, ", ".join(OUTFIT_REGIONS)))
+        elif not material:
+            continue
+        elif not isinstance(material, str):
+            errors.append("слот '%s': нужен строковый ключ материала" % slot)
+        elif material not in materials and material not in MAT_KEYS and not known:
+            errors.append("слот '%s': материала '%s' нет в палитре" % (slot, material))
     return errors
 
 
@@ -1444,7 +1523,41 @@ def schema_json() -> dict:
             "color": list(COLOR_KEYS),
             "spec": {k: list(v) for k, v in SPEC_RANGES.items()},
         },
+        "outfit": {
+            "regions": list(OUTFIT_REGIONS),
+            "sets": outfit_library(),
+        },
     }
+
+
+def outfit_library(path=None):
+    """Библиотека одежды: готовые комплекты (data/outfits.json).
+
+    Комплект — это палитра и привязка слотов к материалам. Он не трогает
+    архетип и не заменяет персонажа целиком: применяется поверх, поэтому
+    можно взять понравившийся комплект и перекрасить пару слотов.
+    """
+    if path is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "data", "outfits.json")
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)["outfits"]
+
+
+def apply_outfit(spec, name):
+    """Новый CharSpec: комплект одежды поверх персонажа.
+
+    Архетип и общие цвета (глаз, неон) остаются прежними — комплект меняет
+    только одежду. Материалы комплекта добавляются в палитру, поэтому после
+    применения их можно править по отдельности.
+    """
+    entry = outfit_library().get(name)
+    if entry is None:
+        raise KeyError("комплект одежды '%s' неизвестен" % name)
+    return CharSpec.from_json(spec.id, {
+        "materials": entry.get("materials") or {},
+        "outfit": entry.get("outfit") or {},
+    }, base=spec)
 
 
 def _luma(color) -> float:

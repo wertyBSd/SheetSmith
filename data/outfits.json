@@ -1,0 +1,132 @@
+{
+  "_comment_ru": [
+    "Библиотека одежды SheetSmith. Комплект — это палитра (materials) и",
+    "привязка слотов одежды к материалам (outfit). Архетип комплект не трогает:",
+    "применяется поверх персонажа, поэтому можно взять готовый комплект и",
+    "перекрасить пару слотов или подставить другой архетип.",
+    "",
+    "Слоты (см. char_generator.OUTFIT_REGIONS):",
+    "  body      торс, шея, капюшон по умолчанию — обычно ряса",
+    "  arms      рука до кисти",
+    "  hands     кисть и наруч: по умолчанию ткань или броня по хвату",
+    "  legs      штаны",
+    "  feet      сапог и наколенник",
+    "  shoulders наплечники и плиты",
+    "  head      то, что над головой: капюшон, шлем, волосы",
+    "",
+    "Любой слот можно не указывать — тогда он берёт историческое значение, и",
+    "персонаж рисуется как раньше. Материалы комплекта добавляются к палитре",
+    "персонажа, поэтому комплект можно сочетать с любыми цветами."
+  ],
+
+  "outfits": {
+    "cy_monk": {
+      "about_ru": "Кибер-монах: длинная ряса, обмотки вместо перчаток, капюшон",
+      "group": "киберпанк",
+      "materials": {
+        "coat":  {"hi": "#3A4468", "base": "#242B44", "dark": "#141A2A", "spec": null, "spec_lam": 0.95, "spec_glow": 0.0},
+        "wraps": {"hi": "#4A5573", "base": "#2E3752", "dark": "#1A2033", "spec": null, "spec_lam": 0.9, "spec_glow": 0.1}
+      },
+      "outfit": {"body": "coat", "arms": "coat", "hands": "wraps", "legs": "coat", "feet": "wraps", "head": "coat", "shoulders": "coat"}
+    },
+
+    "street": {
+      "about_ru": "Стрит-рейсер: оверсайз-куртка, джинсы, кроссовки, кепка",
+      "group": "город",
+      "materials": {
+        "jacket": {"hi": "#6E5C9E", "base": "#3E3468", "dark": "#221C3E", "spec": "#C8B0FF", "spec_lam": 0.7, "spec_glow": 0.3},
+        "denim":  {"hi": "#4E6A9E", "base": "#2E4468", "dark": "#1A2842", "spec": null, "spec_lam": 0.92, "spec_glow": 0.0},
+        "sneak":  {"hi": "#E0E4EC", "base": "#AEB6C4", "dark": "#6E7686", "spec": "#FFFFFF", "spec_lam": 0.6, "spec_glow": 0.5}
+      },
+      "outfit": {"body": "jacket", "arms": "jacket", "hands": "sneak", "legs": "denim", "feet": "sneak", "head": "jacket", "shoulders": "jacket"}
+    },
+
+    "knight": {
+      "about_ru": "Рыцарь: кольчуга, наплечники, тяжёлые сапоги, шлем",
+      "group": "фэнтези",
+      "materials": {
+        "mail":  {"hi": "#8A94A8", "base": "#5A6478", "dark": "#343C4C", "spec": "#DDE6F5", "spec_lam": 0.8, "spec_glow": 0.4},
+        "plate": {"hi": "#B4BECE", "base": "#7E889C", "dark": "#4A5468", "spec": "#EFF4FF", "spec_lam": 0.84, "spec_glow": 0.5},
+        "leather": {"hi": "#7E5A3C", "base": "#54392A", "dark": "#301F18", "spec": null, "spec_lam": 0.9, "spec_glow": 0.05}
+      },
+      "outfit": {"body": "mail", "arms": "mail", "hands": "leather", "legs": "mail", "feet": "plate", "head": "plate", "shoulders": "plate"}
+    },
+
+    "mage": {
+      "about_ru": "Маг: мантия с капюшоном, посох не нужен — важна ткань и капюшон",
+      "group": "фэнтези",
+      "materials": {
+        "robe":  {"hi": "#4E3C7E", "base": "#2E2450", "dark": "#181030", "spec": null, "spec_lam": 0.95, "spec_glow": 0.0},
+        "trim":  {"hi": "#C8A24E", "base": "#8A6E2E", "dark": "#4E3E18", "spec": "#FFE9A8", "spec_lam": 0.7, "spec_glow": 0.6},
+        "boots": {"hi": "#6E5A48", "base": "#443A2E", "dark": "#241E18", "spec": null, "spec_lam": 0.88, "spec_glow": 0.1}
+      },
+      "outfit": {"body": "robe", "arms": "robe", "hands": "trim", "legs": "robe", "feet": "boots", "head": "robe", "shoulders": "trim"}
+    },
+
+    "ninja": {
+      "about_ru": "Ниндзя: чёрная ткань, маска на лице, лёгкие сапоги",
+      "group": "фэнтези",
+      "materials": {
+        "cloth": {"hi": "#3E4454", "base": "#242A38", "dark": "#12151E", "spec": null, "spec_lam": 0.9, "spec_glow": 0.05},
+        "wrap":  {"hi": "#5A6274", "base": "#363C4C", "dark": "#1A1E28", "spec": null, "spec_lam": 0.9, "spec_glow": 0.1}
+      },
+      "outfit": {"body": "cloth", "arms": "cloth", "hands": "wrap", "legs": "cloth", "feet": "wrap", "head": "cloth", "shoulders": "cloth"}
+    },
+
+    "athlete": {
+      "about_ru": "Спортсмен: майка, шорты, кроссовки, без брони",
+      "group": "спорт",
+      "materials": {
+        "top":   {"hi": "#E8E8EE", "base": "#C0C4CE", "dark": "#8A909C", "spec": "#FFFFFF", "spec_lam": 0.65, "spec_glow": 0.55},
+        "shorts": {"hi": "#3E5C9E", "base": "#26406E", "dark": "#142444", "spec": null, "spec_lam": 0.9, "spec_glow": 0.05},
+        "shoe":  {"hi": "#F0F2F6", "base": "#C8CEDA", "dark": "#8A92A2", "spec": "#FFFFFF", "spec_lam": 0.6, "spec_glow": 0.5},
+        "wrap":  {"hi": "#E0E2E8", "base": "#B4B8C4", "dark": "#7E8492", "spec": null, "spec_lam": 0.9, "spec_glow": 0.1}
+      },
+      "outfit": {"body": "top", "arms": "top", "hands": "wrap", "legs": "shorts", "feet": "shoe", "head": "top", "shoulders": "top"}
+    },
+
+    "work": {
+      "about_ru": "Стройка: халат, брюки, ботинки, каска",
+      "group": "повседневное",
+      "materials": {
+        "coat":  {"hi": "#C8A24E", "base": "#8A6A28", "dark": "#4E3C16", "spec": null, "spec_lam": 0.92, "spec_glow": 0.0},
+        "pants": {"hi": "#4E5464", "base": "#2E3442", "dark": "#1A1E28", "spec": null, "spec_lam": 0.92, "spec_glow": 0.0},
+        "boots": {"hi": "#7E5434", "base": "#4E3422", "dark": "#281C12", "spec": null, "spec_lam": 0.85, "spec_glow": 0.1},
+        "gloves": {"hi": "#6E5A3E", "base": "#463824", "dark": "#241C12", "spec": null, "spec_lam": 0.88, "spec_glow": 0.08}
+      },
+      "outfit": {"body": "coat", "arms": "coat", "hands": "gloves", "legs": "pants", "feet": "boots", "head": "coat", "shoulders": "coat"}
+    },
+
+    "coat_navy": {
+      "about_ru": "Повседневное: тренч, брюки, ботинки, без капюшона",
+      "group": "повседневное",
+      "materials": {
+        "trench": {"hi": "#A89A7E", "base": "#6E644E", "dark": "#3E3828", "spec": null, "spec_lam": 0.93, "spec_glow": 0.0},
+        "trousers": {"hi": "#5A5E6E", "base": "#363A48", "dark": "#1C1F28", "spec": null, "spec_lam": 0.92, "spec_glow": 0.0},
+        "shoes": {"hi": "#4E3A2E", "base": "#2E221A", "dark": "#16100C", "spec": null, "spec_lam": 0.8, "spec_glow": 0.15},
+        "gloves": {"hi": "#7E6E56", "base": "#4E4434", "dark": "#282218", "spec": null, "spec_lam": 0.86, "spec_glow": 0.1}
+      },
+      "outfit": {"body": "trench", "arms": "trench", "hands": "gloves", "legs": "trousers", "feet": "shoes", "head": "skin", "shoulders": "trench"}
+    },
+
+    "mech": {
+      "about_ru": "Тяжёлый мех: броня по всему телу, толстые наплечники",
+      "group": "фантастика",
+      "materials": {
+        "shell": {"hi": "#7E6E3E", "base": "#544A26", "dark": "#2E2814", "spec": "#E0D08A", "spec_lam": 0.8, "spec_glow": 0.45},
+        "joint": {"hi": "#5A5E6E", "base": "#383C48", "dark": "#1E2028", "spec": "#C8CEDA", "spec_lam": 0.82, "spec_glow": 0.4}
+      },
+      "outfit": {"body": "shell", "arms": "joint", "hands": "joint", "legs": "joint", "feet": "shell", "head": "shell", "shoulders": "shell"}
+    },
+
+    "beach": {
+      "about_ru": "Пляж: шорты и открытая кожа — проверка слотов на голой коже",
+      "group": "повседневное",
+      "materials": {
+        "shorts": {"hi": "#E0C24E", "base": "#AE9428", "dark": "#6E5C18", "spec": null, "spec_lam": 0.9, "spec_glow": 0.05},
+        "skin":   {"hi": "#E0AE86", "base": "#B98A66", "dark": "#7E5C46", "spec": "#F0CFAE", "spec_lam": 0.6, "spec_glow": 0.95}
+      },
+      "outfit": {"body": "skin", "arms": "skin", "hands": "skin", "legs": "skin", "feet": "skin", "head": "skin", "shoulders": "skin"}
+    }
+  }
+}

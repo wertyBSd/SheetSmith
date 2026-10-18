@@ -39,6 +39,10 @@ async function requestPreview() {
   const state = store.state;
   if (!state.character) return;
 
+  // Поле масштаба приводим к тому, что реально используется: подгонка под окно
+  // меняет масштаб молча, и без этого в поле осталось бы старое число.
+  el.scaleInput.value = String(state.scale);
+
   const result = await api.previewFrame(
     state.character,
     { anim: state.anim, frame: state.frame, scale: state.scale },
@@ -106,11 +110,10 @@ function renderPresets() {
 
 /** Общая точка для кнопок пресетов, undo и загрузки из библиотеки. */
 function loadCharacter(character) {
-  store.set({ character: cloneCharacter(character), metrics: null });
+  store.set({ character: cloneCharacter(character), metrics: null, outfitSet: null });
   markSelectedPreset();
   renderPresets();
-  renderEditor(el.controls, { edit, animChange });
-  renderExport(el.controls, () => store.state);
+  refreshControls();
   refreshPreview(0);
   scheduleMeasure();
 }
@@ -123,6 +126,44 @@ function animChange(anims, groupNode) {
     (sum, a) => sum + (chosen.has(a.name) ? a.frames : 0), 0);
   const hint = groupNode.querySelector(".hint");
   if (hint) hint.textContent = `выбрано ${chosen.size} движений, ${frames} кадров`;
+}
+
+/**
+ * Комплект одежды целиком. Сервер не хранит гардероб — комплект применяется
+ * на его стороне к текущему описанию, поэтому ответ приходит уже готовым.
+ */
+async function applyOutfitSet(name) {
+  if (!name) {
+    store.set({ outfitSet: null });
+    refreshControls();
+    return;
+  }
+  try {
+    const character = await api.applyOutfit(store.state.character, name);
+    store.set({ character, outfitSet: name, metrics: null });
+    refreshControls();
+    refreshPreview(0);
+    scheduleMeasure();
+  } catch (error) {
+    setStatus(`комплект не применился: ${error.message}`, "error");
+  }
+}
+
+/** Точечная правка слота: переставить один материал на другую часть тела. */
+function applyOutfitSlot(slot, material) {
+  const character = cloneCharacter(store.state.character);
+  const outfit = { ...(character.outfit || {}) };
+  if (material) outfit[slot] = material; else delete outfit[slot];
+  character.outfit = Object.keys(outfit).length ? outfit : null;
+  store.set({ character, outfitSet: null, metrics: null });
+  refreshControls();
+  refreshPreview(0);
+  scheduleMeasure();
+}
+
+function refreshControls() {
+  renderEditor(el.controls, { edit, animChange, outfitSet: applyOutfitSet, outfitSlot: applyOutfitSlot });
+  renderExport(el.controls, () => store.state);
 }
 
 function markSelectedPreset() {
@@ -264,8 +305,8 @@ async function boot() {
   try {
     const [schema, presets] = await Promise.all([api.schema(), api.presets()]);
     store.set({ schema, presets, anims: [...schema.animDefault] });
+    renderTabs();               // вкладки занимают место до подгонки масштаба
     fitScale();
-    renderTabs();
     renderPresets();
     setStatus(`готов: ${presets.length} пресетов, ${schema.anims.length} движений`);
     if (presets.length) loadCharacter(presets[0]);

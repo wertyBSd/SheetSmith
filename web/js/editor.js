@@ -22,6 +22,17 @@ const MATERIAL_NAMES = {
 const RAMP_KEYS = ["robe", "armor", "skin"];
 const COLOR_KEYS = ["eye", "neon", "neon_soft"];
 
+// Слоты одежды по-человечески: в описании они английские, в панели — нет.
+const SLOT_NAMES = {
+  body: "торс и шея",
+  arms: "рука",
+  hands: "кисти",
+  legs: "штаны",
+  feet: "сапоги",
+  shoulders: "наплечники",
+  head: "голова",
+};
+
 function group(title) {
   const box = document.createElement("div");
   box.className = "group";
@@ -148,6 +159,29 @@ export function renderEditor(root, hooks) {
       (value) => hooks.edit(() => store.setArch(key, value))));
   }
   parts.push(arch);
+
+  // --- одежда ---
+  // Сначала комплект целиком, потом слоты по отдельности: комплект задаёт
+  // готовую пару «материал + куда его надеть», а слоты позволяют переставить
+  // один материал на другую часть тела.
+  const outfit = group("Одежда");
+  const sets = schema.outfit?.sets || {};
+  const setNames = Object.keys(sets);
+  outfit.append(selectField("комплект",
+    ["— свой —", ...setNames],
+    store.state.outfitSet || "— свой —",
+    (value) => hooks.outfitSet(value === "— свой —" ? null : value)));
+
+  const worn = store.state.character.outfit || {};
+  const materials = Object.keys(store.state.character.materials);
+  for (const slot of schema.outfit?.regions || []) {
+    outfit.append(selectField(SLOT_NAMES[slot] || slot,
+      ["— как раньше —", ...materials],
+      worn[slot] || "— как раньше —",
+      (value) => hooks.outfitSlot(slot,
+        value === "— как раньше —" ? null : value)));
+  }
+  parts.push(outfit);
 
   // --- пропорции ---
   const sizes = group("Пропорции");
