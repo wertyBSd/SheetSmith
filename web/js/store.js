@@ -19,6 +19,7 @@ export const store = {
     busy: false,
     metrics: null,     // { heads, head_px, figure_px, warnings }
     lastRender: null,  // { cached, renderMs }
+    combat: null,      // { frame, anims: { имя: { ms, hits, hurt } } }
     error: null,
   },
 

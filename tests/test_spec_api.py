@@ -362,6 +362,108 @@ def test_style():
         check("неизвестный образец падает", True)
 
 
+def test_combat():
+    section("Боевые данные: тайминги по кадрам и зоны попадания")
+    names = G.anim_names()
+
+    # Тайминги: у каждого движения есть длительность каждого кадра.
+    for name in names:
+        t = G.anim_timing(name)
+        entry = G.anim_info(name)
+        check("%s: мс на каждый кадр" % name, len(t["ms"]) == t["frames"],
+              "%d против %d" % (len(t["ms"]), t["frames"]))
+        check("%s: длительности положительные" % name,
+              all(ms >= 1 for ms in t["ms"]), t["ms"])
+        check("%s: сумма совпадает" % name, t["totalMs"] == sum(t["ms"]), t["totalMs"])
+
+    # Без явного `ms` тайминги считаются от fps — так вела себя библиотека раньше.
+    plain = {"frames": [[], [], []], "fps": 10}
+    check("без ms длительность берётся из fps",
+          G.frame_ms(plain) == [100, 100, 100], G.frame_ms(plain))
+    check("короткий список ms продолжается последним значением",
+          G.frame_ms({"frames": [[]] * 4, "ms": [50, 70]}) == [50, 70, 70, 70],
+          G.frame_ms({"frames": [[]] * 4, "ms": [50, 70]}))
+    check("ноль и мусор не ломают тайминг",
+          G.frame_ms({"frames": [[]], "ms": [0]}) == [1]
+          and all(ms >= 1 for ms in G.frame_ms({"frames": [[]] * 2, "fps": 0})))
+    check("пустое движение не падает", G.frame_ms({"frames": []}) == [])
+
+    # Активные окна: удар обязан иметь хитбокс на кадре контакта.
+    attacks = [n for n in names if G.anim_info(n).get("hits")]
+    check("ударов с хитбоксами: 11", len(attacks) == 11, len(attacks))
+    for name in attacks:
+        t = G.anim_timing(name)
+        active = [i for i, boxes in enumerate(t["hits"]) if boxes]
+        check("%s: активные кадры есть" % name, bool(active), active)
+        # Пушк всегда раньше отхода: если оба есть, пуск должен идти первым.
+        kinds = [b["kind"] for boxes in t["hits"] for b in boxes]
+        if "пуск" in kinds and "удар" in kinds:
+            check("%s: пуск раньше отхода" % name,
+                  kinds.index("пуск") < kinds.index("удар"), kinds)
+        for col, boxes in enumerate(t["hits"]):
+            for box in boxes:
+                # Хитбокс НЕ обрезается по кадру и это не ошибка: кадр — это
+                # границы спрайта, а не границы персонажа. Удар в упор должен
+                # доставать соседа, стоящего вплотную, иначе он проходил бы
+                # сквозь него. Проверяем поэтому не «влезает в кадр», а «есть
+                # ли площадь внутри кадра» — вылет за край не делает зону
+                # пустой.
+                inside = (0 <= box["x"] and 0 <= box["y"]
+                          and box["x"] < G.FW and box["y"] < G.FH
+                          and box["w"] > 0 and box["h"] > 0)
+                check("%s кадр %d: хитбокс попадает в кадр" % (name, col),
+                      inside, box)
+
+    # Хитбокс обязан быть на вытянутой конечности, иначе удар ловит вхолостую.
+    for name in attacks:
+        poses = G.build_anims([name])[0][1]
+        for col, boxes in enumerate(G.anim_info(name)["hits"]):
+            for box in boxes:
+                part = box["part"]
+                home = G.RIG_STANCE[part]
+                reach = ((poses[col][part][0] - home[0]) ** 2
+                         + (poses[col][part][1] - home[1]) ** 2) ** 0.5
+                check("%s кадр %d: %s вытянут" % (name, col, part),
+                      reach >= 10, "вылет %.1f" % reach)
+
+    # Хёртбоксы: шесть зон на каждом кадре, все в пределах кадра.
+    for name in ("idle", "walk", "punch", "round_kick"):
+        t = G.anim_timing(name, spec=G.char_spec("tetrax"))
+        for col, boxes in enumerate(t["hurt"]):
+            check("%s кадр %d: шесть зон" % (name, col), len(boxes) == 6, len(boxes))
+            check("%s кадр %d: зоны в кадре" % (name, col),
+                  all(0 <= b["x"] and 0 <= b["y"] and b["w"] > 0 and b["h"] > 0
+                      and b["x"] + b["w"] <= G.FW and b["y"] + b["h"] <= G.FH
+                      for b in boxes),
+                  [b for b in boxes if b["x"] + b["w"] > G.FW])
+
+    # Зона головы следует за стилем: у чиби голова крупнее, и зона тоже.
+    spec = G.char_spec("tetrax")
+    big = G.apply_style(spec, "chibi")
+    plain_head = [b for b in G.hurt_boxes(G.RIG_STANCE, spec)
+                  if b["kind"] == "голова"][0]
+    chibi_head = [b for b in G.hurt_boxes(G.RIG_STANCE, big)
+                  if b["kind"] == "голова"][0]
+    check("зона головы растёт вместе со стилем",
+          chibi_head["w"] > plain_head["w"] and chibi_head["h"] > plain_head["h"],
+          "%dx%d против %dx%d" % (chibi_head["w"], chibi_head["h"],
+                                  plain_head["w"], plain_head["h"]))
+
+    # Зоны едут за позой: поднятая нога поднимает свою зону. Сравниваются
+    # верхние края, а не нижние: зона стоящей ноги упирается в ниж кадра и
+    # обрезается, поэтому по низу отличить поднятую ногу от стоящей нельзя.
+    poses = G.build_anims(["round_kick"])[0][1]
+    rest = [b for b in G.hurt_boxes(poses[0], spec) if b["kind"] == "нога"]
+    lifted = [b for b in G.hurt_boxes(poses[1], spec) if b["kind"] == "нога"]
+    check("зона поднятой ноги выше, чем у стоящей",
+          min(b["y"] for b in lifted) < min(b["y"] for b in rest),
+          "%d против %d" % (min(b["y"] for b in lifted), min(b["y"] for b in rest)))
+    check("зона поднятой ноги уходит вперёд",
+          max(b["x"] + b["w"] for b in lifted) > max(b["x"] + b["w"] for b in rest),
+          "%d против %d" % (max(b["x"] + b["w"] for b in lifted),
+                            max(b["x"] + b["w"] for b in rest)))
+
+
 def test_bounds():
     section("Границы архетипа не роняют рендер")
     idle = dict(G.ANIMS)["idle"][0]
@@ -402,6 +504,7 @@ def main():
     test_outfits()
     test_shapes()
     test_style()
+    test_combat()
     test_bounds()
     test_registry()
     print()

@@ -87,6 +87,18 @@ body {
 .frame-box[data-state="loading"] img { opacity: .35; }
 .frame-box[data-state="error"] img { opacity: .12; }
 
+/* Канвас зон лежит ровно поверх картинки. left/top 8px — это padding
+   .frame-box, а не выравнивание «на глаз»: сдвиг на пиксель сбивал бы зону
+   с суставом, а на масштабе 5 это уже пять пикселей мимо. */
+.boxes {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  pointer-events: none;
+}
+
+.stage-bar label.check { cursor: pointer; user-select: none; }
+
 .spinner {
   position: absolute;
   inset: 0;

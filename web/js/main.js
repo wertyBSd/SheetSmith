@@ -23,6 +23,8 @@ const el = {
   play: document.getElementById("play"),
   hint: document.getElementById("hint"),
   metrics: document.getElementById("metrics"),
+  boxes: document.getElementById("boxes"),
+  boxesToggle: document.getElementById("boxes-toggle"),
 };
 
 let previewUrl = null;
@@ -32,6 +34,85 @@ let player = null;
 function setStatus(text, kind = "") {
   el.status.textContent = text;
   el.status.className = `status ${kind}`;
+}
+
+/** Боевые данные для текущего персонажа: тайминги и зоны по всем движениям.
+ *
+ * Запрашиваются вместе с замером и молча обновляют store: и плеер, и оверлей
+ * читают их оттуда. Ошибка здесь не должна ломать превью — картинка от зон не
+ * зависит, поэтому при неудаче просто едем без них.
+ */
+async function refreshCombat() {
+  const state = store.state;
+  if (!state.character) return;
+  try {
+    const data = await api.combat(state.character, [...(state.anims || [])]);
+    store.set({ combat: data });
+    drawBoxes();
+    // В подписи к вкладкам теперь есть настоящая длительность и активные
+    // кадры, поэтому их надо перерисовать после загрузки боевых данных.
+    renderTabs();
+  } catch {
+    store.set({ combat: null });
+  }
+}
+
+/** Тайминги кадров выбранного движения -> [мс, ...], либо null. */
+function animMs(name) {
+  const info = store.state.combat?.anims?.[name];
+  return info?.ms || null;
+}
+
+/**
+ * Зоны попадания поверх кадра.
+ *
+ * Рисуются на канвасе, а не поверх картинки средствами CSS: у img нельзя задать
+ * полупрозрачную заливку попиксельно, а здесь важно видеть персонажа ПОД зоной —
+ * иначе непонятно, бьёт ли удар в шею или в пустоту рядом с ней.
+ *
+ * Красным — куда бьёт персонаж, синим — куда по нему можно попасть. Пунктирная
+ * рамка отмечает первый кадр контакта: в файтинге он короче остальных и именно
+ * его ловит проверка «попало ли».
+ */
+function drawBoxes() {
+  const state = store.state;
+  const info = state.combat?.anims?.[state.anim];
+  const on = el.boxesToggle.checked;
+  if (!on || !info) {
+    el.boxes.hidden = true;
+    return;
+  }
+  const { w, h } = state.combat.frame;
+  const scale = state.scale;
+  el.boxes.width = w * scale;
+  el.boxes.height = h * scale;
+  el.boxes.hidden = false;
+
+  const ctx = el.boxes.getContext("2d");
+  ctx.clearRect(0, 0, el.boxes.width, el.boxes.height);
+
+  const box = (rect, stroke, fill, dashed) => {
+    ctx.setLineDash(dashed ? [3, 3] : []);
+    ctx.strokeStyle = stroke;
+    ctx.fillStyle = fill;
+    ctx.lineWidth = 1;
+    const x = rect.x * scale + 0.5;
+    const y = rect.y * scale + 0.5;
+    ctx.fillRect(x, y, rect.w * scale - 1, rect.h * scale - 1);
+    ctx.strokeRect(x, y, rect.w * scale - 1, rect.h * scale - 1);
+  };
+
+  // ctx.setLineDash не сбрасывается сам, а последняя нарисованная рамка была бы
+  // пунктирной, если бы забыли.
+  for (const rect of info.hurt[state.frame] || []) {
+    box(rect, "#4da3ff", "rgba(77,163,255,.16)", false);
+  }
+  for (const rect of info.hits[state.frame] || []) {
+    box(rect, rect.kind === "пуск" ? "#ffd433" : "#ff4d5e",
+        rect.kind === "пуск" ? "rgba(255,212,51,.30)" : "rgba(255,77,94,.34)",
+        rect.kind === "пуск");
+  }
+  ctx.setLineDash([]);
 }
 
 /** Единственное место, где превью уезжает на сервер. */
@@ -57,6 +138,7 @@ async function requestPreview() {
   previewUrl = result.url;
   el.previewImg.src = previewUrl;
   el.previewBox.dataset.state = "ready";
+  drawBoxes();
 
   const ms = result.meta.cached ? "из кэша" : `рендер ${result.meta.renderMs} мс`;
   setStatus(ms, result.meta.cached ? "" : "busy");
@@ -111,12 +193,13 @@ function renderPresets() {
 /** Общая точка для кнопок пресетов, undo и загрузки из библиотеки. */
 function loadCharacter(character) {
   store.set({ character: cloneCharacter(character), metrics: null,
-              outfitSet: null, styleName: null });
+              outfitSet: null, styleName: null, combat: null });
   markSelectedPreset();
   renderPresets();
   refreshControls();
   refreshPreview(0);
   scheduleMeasure();
+  refreshCombat();
 }
 
 /** Галочки движений: пересчитываем лист, но предпросмотр не трогаем. */
@@ -127,6 +210,7 @@ function animChange(anims, groupNode) {
     (sum, a) => sum + (chosen.has(a.name) ? a.frames : 0), 0);
   const hint = groupNode.querySelector(".hint");
   if (hint) hint.textContent = `выбрано ${chosen.size} движений, ${frames} кадров`;
+  refreshCombat();
 }
 
 /**
@@ -220,14 +304,26 @@ function markSelectedPreset() {
 /**
  * Правка из редактора. `quick` отличает движение ползунка (много запросов,
  * нужен debounce) от отпускания (показать сразу).
+ *
+ * Боевые данные обновляются здесь же, а не в каждой правке: зоны зависят от
+ * стиля, одежды и пропорций, то есть меняются вместе с телом, и забыть про
+ * них в одной из веток означало бы показывать зоны от прежнего персонажа.
  */
 function edit(apply, quick = true) {
   apply();
   refreshPreview(quick ? 220 : 0);
   scheduleMeasure();
+  scheduleCombat();
 }
 
 let measureTimer = null;
+let combatTimer = null;
+
+/** Замер зон позже замера метрик: он дороже и нужен реже. */
+function scheduleCombat() {
+  clearTimeout(combatTimer);
+  combatTimer = setTimeout(refreshCombat, 450);
+}
 
 /** Рост в головах считается отдельно и реже: он меняется медленно вида. */
 function scheduleMeasure() {
@@ -252,8 +348,22 @@ function renderTabs() {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = anim.name;
-    button.title = `${anim.group}: ${anim.frames} кадр(ов), ${anim.fps} fps` +
-      (anim.loop ? ", зацикливать" : "");
+    // В подписи — настоящая длительность удара и его активные кадры, если
+    // они есть: fps из схемы для удара вводит в заблуждение, потому что кадры
+    // внутри анимации могут идти с разной скоростью.
+    const ms = animMs(anim.name);
+    const active = store.state.combat?.anims?.[anim.name]?.hits
+      ?.map((boxes, i) => (boxes.length ? i : -1)).filter((i) => i >= 0);
+    let title = `${anim.group}: ${anim.frames} кадр(ов)`;
+    if (ms?.length) {
+      title += `, ${ms.reduce((a, b) => a + b, 0)} мс`;
+      if (new Set(ms).size > 1) title += ` (${ms.join("/")})`;
+    } else {
+      title += `, ${anim.fps} fps`;
+    }
+    if (active?.length) title += `, удар на кадрах ${active.join(", ")}`;
+    if (anim.loop) title += ", зацикливать";
+    button.title = title;
     button.setAttribute("aria-pressed", String(anim.name === store.state.anim));
     button.addEventListener("click", () => {
       stop();
@@ -274,6 +384,26 @@ function syncFrameInput() {
 
 // --- плеер -----------------------------------------------------------------
 
+/**
+ * Плеер идёт по настоящим таймингам кадра, а не равномерно.
+ *
+ * Раньше был setInterval на 140 мс на кадр: удар показывался одинаково быстро
+ * и на замахе, и на отходе, то есть ровно то, чего файлтинг не позволяет.
+ * Теперь длительность каждого кадра берётся из боевых данных (замах короче
+ * удара), а если их нет — делится 1000 на fps, как в плеере-заглушке.
+ *
+ * setTimeout, а не setInterval: у кадров разная длина, а интервал один на всю
+ * анимацию — либо растягивает замах, либо обрезает отход.
+ */
+const FALLBACK_MS = 140;
+
+function stepMs(anim, frame) {
+  const ms = animMs(anim);
+  if (ms?.length) return ms[Math.min(frame, ms.length - 1)];
+  const info = store.state.schema?.anims?.find((a) => a.name === anim);
+  return info ? Math.round(1000 / (info.fps || 8)) : FALLBACK_MS;
+}
+
 function start() {
   stop();
   const frames = animFrames(store.state.schema, store.state.anim);
@@ -281,17 +411,24 @@ function start() {
   store.set({ playing: true });
   el.play.textContent = "■ стоп";
   el.play.dataset.on = "1";
-  player = setInterval(() => {
-    const total = animFrames(store.state.schema, store.state.anim);
-    const next = (store.state.frame + 1) % total;
+
+  const tick = () => {
+    if (!store.state.playing) return;
+    const state = store.state;
+    const total = animFrames(state.schema, state.anim);
+    const next = (state.frame + 1) % total;
     store.set({ frame: next });
     syncFrameInput();
     requestPreview();
-  }, 140);
+    // Длительность следующего кадра, а не показанного: показывать кадр и
+    // отсчитывать его надо одним и тем же числом.
+    player = setTimeout(tick, stepMs(state.anim, next));
+  };
+  player = setTimeout(tick, stepMs(store.state.anim, store.state.frame));
 }
 
 function stop() {
-  if (player) clearInterval(player);
+  if (player) clearTimeout(player);
   player = null;
   store.set({ playing: false });
   el.play.textContent = "▶ пуск";
@@ -322,6 +459,11 @@ function renderMetrics() {
 
 store.subscribe((state) => {
   if (state.metrics || state.lastRender) renderMetrics();
+});
+
+el.boxesToggle.addEventListener("change", () => {
+  drawBoxes();
+  if (el.boxesToggle.checked && !store.state.combat) refreshCombat();
 });
 
 // --- запуск ----------------------------------------------------------------

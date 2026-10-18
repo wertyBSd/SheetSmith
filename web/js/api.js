@@ -81,6 +81,24 @@ export function applyOutfit(character, name) {
 }
 
 /**
+ * Боевые данные: тайминги кадров и зоны попадания по всем движениям набора.
+ *
+ * Считается на сервере из того же движка, что и картинка, поэтому зона и пиксель
+ * не могут разойтись. Отдельный запрос, а не поле в превью: превью
+ * перерисовывается на каждый чих слайдера, а боевые данные меняются только
+ * вместе с описанием персонажа.
+ */
+export async function combat(character, anims) {
+  const response = await fetch("/api/combat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...character, anims }),
+  });
+  if (!response.ok) throw new Error(await describe(response));
+  return response.json();
+}
+
+/**
  * Кадр превью -> { url, meta }. Старые запросы отменяются, ответы с устаревшим
  * номером выбрасываются. onState("loading" | "ready" | "error") — чтобы
  * интерфейс мог показать прошлый кадр, пока считается новый.

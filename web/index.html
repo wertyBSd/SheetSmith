@@ -25,6 +25,10 @@
     <div class="canvas-wrap">
       <div class="frame-box" id="preview" data-state="loading">
         <img id="preview-img" alt="кадр персонажа">
+        <!-- Зоны попадания рисуются на канвасе поверх картинки, а не поверх
+             img: у img нельзя задать прозрачную заливку попиксельно, а здесь
+             важно видеть персонажа под зоной, а не вместо него. -->
+        <canvas id="boxes" class="boxes" hidden></canvas>
         <div class="spinner" id="spinner"></div>
       </div>
       <p class="hint" id="hint"></p>
@@ -36,6 +40,9 @@
         <option value="4">4</option><option value="5">5</option>
       </select></label>
       <button id="play" type="button">▶ пуск</button>
+      <label class="check" title="Показать зоны попадания: куда бьёт персонаж и куда по нему можно попасть">
+        <input type="checkbox" id="boxes-toggle"> зоны
+      </label>
       <span class="metrics" id="metrics"></span>
     </div>
   </section>

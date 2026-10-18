@@ -312,6 +312,9 @@ class RenderService:
             archive.writestr("%s/sheet.png" % spec.id, sheet.to_png_bytes())
             archive.writestr("%s/%s.json" % (spec.id, spec.id),
                              json.dumps(spec.to_json(), ensure_ascii=False, indent=2))
+            archive.writestr("%s/combat.json" % spec.id,
+                             json.dumps(_combat(spec, built),
+                                        ensure_ascii=False, indent=2))
             archive.writestr("%s/README.txt" % spec.id,
                              _pack_readme(spec, built, G.FW, G.FH))
             for index, (name, poses) in enumerate(built):
@@ -360,6 +363,23 @@ def _layout(specs, anims=None):
     return tasks, slots
 
 
+def _combat(spec, built):
+    """Боевые данные набора: тайминги по кадрам и зоны попадания.
+
+    Отдельный файл, а не поле в описании персонажа: описание отвечает за «кто
+    это», а combat.json — за «как его бьют». Движок склеивает одно с другим
+    сам, игре до этого дела нет.
+    """
+    out = {"character": spec.id, "frame": {"w": G.FW, "h": G.FH},
+           "origin": {"x": G.FW // 2, "y": G.FOOT_Y},
+           "note": "координаты зон — в пикселях кадра, левый верхний угол; "
+                   "hit — куда бьёт персонаж, hurt — куда попасть можно",
+           "anims": {}}
+    for name, poses in built:
+        out["anims"][name] = G.anim_timing(name, poses=poses, spec=spec)
+    return out
+
+
 def _pack_readme(spec, anims, fw, fh):
     """Текст внутри архива: что где лежит и как нарезать лист."""
     lines = [
@@ -372,14 +392,30 @@ def _pack_readme(spec, anims, fw, fh):
         "         одна строка, кадры слева направо.",
         "%s.json — описание персонажа (палитра и архетип), принимается" % spec.id,
         "         движком: py char_generator.py --characters <файл> --hero %s" % spec.id,
+        "combat.json — тайминги по кадрам и зоны попадания для движка игры:",
+        "         ms[i] — сколько миллисекунд держать кадр i, hit — куда бьёт",
+        "         персонаж, hurt — куда по нему можно попасть. Координаты в",
+        "         пикселях кадра; начало координат — левый верхний угол, а",
+        "         «поставка» персонажа на землю — %d, %d (по центру кадра)."
+        % (G.FW // 2, G.FOOT_Y),
         "",
         "Движения в порядке строк:",
     ]
     for index, (name, poses) in enumerate(anims):
         info = G.anim_info(name)
-        lines.append("  %2d. %-12s кадров: %d   %s   %s"
-                     % (index, name, len(poses), info.get("group", ""),
+        ms = G.frame_ms(info)
+        active = [i for i, boxes in enumerate(info.get("hits") or [])
+                  if boxes] if info.get("hits") else []
+        lines.append("  %2d. %-12s кадров: %d   %d мс   %s   %s"
+                     % (index, name, len(poses), sum(ms),
+                        info.get("group", ""),
                         "зацикливать" if info.get("loop") else "однократно"))
+        if ms and (ms[0] != ms[-1] or len(set(ms)) > 1):
+            lines.append("      мс по кадрам: %s"
+                         % ", ".join(str(v) for v in ms))
+        if active:
+            lines.append("      активные кадры (удар): %s"
+                         % ", ".join(str(i) for i in active))
     lines.append("")
     return "\n".join(lines)
 

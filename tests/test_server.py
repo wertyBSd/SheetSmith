@@ -164,6 +164,42 @@ def test_measure():
     check("предупреждения — список", isinstance(data["warnings"], list))
 
 
+def test_combat():
+    print("\nБоевые данные: тайминги и зоны")
+    status, _headers, body = post("/api/combat",
+                                  dict(first_preset(), anims=["punch", "idle"]))
+    data = json.loads(body)
+    check("ответ 200 и есть движения", status == 200 and set(data["anims"]) ==
+          {"punch", "idle"}, list(data.get("anims", {})))
+
+    punch = data["anims"]["punch"]
+    check("кадр в ответе", data["frame"] == {"w": 80, "h": 128}, data["frame"])
+    check("мс на каждый кадр", len(punch["ms"]) == punch["frames"], punch["ms"])
+    check("разные длительности у удара", len(set(punch["ms"])) > 1, punch["ms"])
+    check("шесть зон на кадр",
+          all(len(z) == 6 for z in punch["hurt"]), punch["hurt"][0])
+    active = [i for i, boxes in enumerate(punch["hits"]) if boxes]
+    check("удар отмечен", bool(active), active)
+    # Зона не должна уехать за пределы кадра целиком: удар в упор выходит за
+    # край, но хотя бы часть зоны всегда лежит на кадре.
+    check("зоны бьют наружу, а не в пустоту",
+          all(0 <= b["x"] and 0 <= b["y"] and b["x"] < 80 and b["y"] < 128
+              for boxes in punch["hits"] for b in boxes), punch["hits"])
+
+    idle = data["anims"]["idle"]
+    check("покой без удара", not any(idle["hits"]), idle["hits"])
+    check("покой зациклен", idle["loop"] is True, idle["loop"])
+
+    # Без движения в запросе отдаётся хоть что-то, а не пустой список:
+    # редактор зовёт это до того, как галочки движений проставлены.
+    status, _h, raw = post("/api/combat", first_preset())
+    check("без списка движений не падает",
+          status == 200 and json.loads(raw)["anims"], status)
+
+    status, _h, raw = post("/api/combat", {"id": "x"})
+    check("кривое описание даёт 400", status == 400, status)
+
+
 def test_job():
     print("\nДолгий экспорт листа")
     preset = first_preset()
@@ -236,16 +272,37 @@ def test_pack():
     hero = preset["id"]
     check("внутри общий лист", "%s/sheet.png" % hero in names, names)
     check("внутри описание персонажа", "%s/%s.json" % (hero, hero) in names)
+    check("внутри боевые данные", "%s/combat.json" % hero in names)
     check("внутри раскладка", "%s/README.txt" % hero in names)
     check("полоска на каждое движение",
           all("%s/animations/%s.png" % (hero, a) in names for a in anims))
-    check("никаких лишних файлов", len(names) == 3 + len(anims), names)
+    check("никаких лишних файлов", len(names) == 4 + len(anims), names)
 
     strip = read_png_file(archive, "%s/animations/jab.png" % hero)
     check("полоска удара — одна строка кадров",
           strip[0] == 80 * 3 and strip[1] == 128, strip)
+    readme = archive.read("%s/README.txt" % hero).decode("utf-8")
     check("раскладка перечисляет движения",
-          all(a in archive.read("%s/README.txt" % hero).decode("utf-8") for a in anims))
+          all(a in readme for a in anims), readme)
+
+    # Боевые данные в архиве — то, ради чего набор и выгружается для игры.
+    combat = json.loads(archive.read("%s/combat.json" % hero).decode("utf-8"))
+    check("кадр и точка постановки",
+          combat["frame"] == {"w": 80, "h": 128}
+          and combat["origin"] == {"x": 40, "y": 124}, combat["frame"])
+    check("боевые данные на каждое движение",
+          set(combat["anims"]) == set(anims), list(combat["anims"]))
+    punch = combat["anims"]["jab"]
+    check("тайминги на каждый кадр", len(punch["ms"]) == punch["frames"], punch["ms"])
+    check("сумма совпадает", punch["totalMs"] == sum(punch["ms"]), punch["totalMs"])
+    check("зоны попадания есть на каждом кадре",
+          all(len(zones) == 6 for zones in punch["hurt"]),
+          [len(z) for z in punch["hurt"]])
+    check("удар отмечен хотя бы на одном кадре",
+          any(boxes for boxes in punch["hits"]),
+          [len(b) for b in punch["hits"]])
+    check("в раскладке сказано про combat.json",
+          "combat.json" in readme and "мс" in readme, readme[:400])
 
 
 def read_png_file(archive, name):
@@ -324,6 +381,7 @@ def main():
         test_preview()
         test_errors()
         test_measure()
+        test_combat()
         test_root()
         test_job()
         test_selected_anims()

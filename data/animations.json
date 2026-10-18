@@ -194,6 +194,7 @@
 
     "jab": {
       "group": "атака", "fps": 14, "loop": false,
+      "ms": [80, 60, 110],
       "frames": [
         [{"shift": {"dx": -1, "dy": 0}},
          {"aim": {"side": "f", "d": [-6, 6], "bend": 1.0}},
@@ -203,11 +204,17 @@
          {"shift": {"part": "fist_b", "dx": -3, "dy": -2}}],
         [{"shift": {"dx": 1, "dy": 0}},
          {"aim": {"side": "f", "d": [11, -2], "bend": 1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "fist_f", "w": 15, "h": 14, "kind": "пуск"}],
+        [{"part": "fist_f", "w": 13, "h": 12, "kind": "удар"}]
       ]
     },
 
     "cross": {
       "group": "атака", "fps": 13, "loop": false,
+      "ms": [90, 70, 130],
       "frames": [
         [{"shift": {"dx": 0, "dy": 0}},
          {"aim": {"side": "b", "d": [-4, 8], "bend": 1.0}},
@@ -217,11 +224,17 @@
          {"aim": {"side": "f", "d": [-8, 4], "bend": 1.0}}],
         [{"shift": {"dx": 2, "dy": 0}},
          {"aim": {"side": "b", "d": [8, 0], "bend": 1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "fist_b", "w": 15, "h": 14, "kind": "пуск"}],
+        []
       ]
     },
 
     "hook": {
       "group": "атака", "fps": 12, "loop": false,
+      "ms": [110, 80, 150],
       "frames": [
         [{"shift": {"dx": 0, "dy": 0}},
          {"aim": {"side": "f", "d": [-8, 2], "bend": -1.0}}],
@@ -230,11 +243,17 @@
          {"shift": {"part": "head", "dx": 2, "dy": 0}}],
         [{"shift": {"dx": 1, "dy": 0}},
          {"aim": {"side": "f", "d": [6, 0], "bend": -1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "fist_f", "w": 17, "h": 17, "kind": "пуск"}],
+        []
       ]
     },
 
     "uppercut": {
       "group": "атака", "fps": 12, "loop": false,
+      "ms": [100, 70, 160],
       "frames": [
         [{"shift": {"dx": 0, "dy": 2}},
          {"aim": {"side": "f", "d": [-6, 10], "bend": -1.0}},
@@ -245,11 +264,17 @@
          {"shift": {"part": "head", "dx": 2, "dy": -2}}],
         [{"shift": {"dx": 2, "dy": 0}},
          {"aim": {"side": "f", "d": [4, -6], "bend": -1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "fist_f", "w": 16, "h": 24, "kind": "пуск"}],
+        []
       ]
     },
 
     "low_kick": {
       "group": "атака", "fps": 12, "loop": false,
+      "ms": [95, 70, 140],
       "frames": [
         [{"shift": {"dx": -2, "dy": 4}},
          {"step": {"side": "f", "d": [-4, 8], "bend": 1.0}}],
@@ -259,11 +284,17 @@
          {"shift": {"part": "fist_f", "dx": 2, "dy": 3}}],
         [{"shift": {"dx": 0, "dy": 4}},
          {"step": {"side": "f", "d": [4, 6], "bend": 1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "foot_f", "w": 18, "h": 12, "kind": "пуск"}],
+        []
       ]
     },
 
     "round_kick": {
       "group": "атака", "fps": 11, "loop": false,
+      "ms": [130, 80, 190],
       "frames": [
         [{"shift": {"dx": -2, "dy": 2}},
          {"step": {"side": "f", "d": [-3, 6], "bend": 1.0}},
@@ -276,11 +307,17 @@
          {"aim": {"side": "b", "d": [-4, 6], "bend": -1.0}}],
         [{"shift": {"dx": -1, "dy": 2}},
          {"step": {"side": "f", "d": [6, -2], "bend": -1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "foot_f", "w": 20, "h": 16, "kind": "пуск"}],
+        []
       ]
     },
 
     "knee": {
       "group": "атака", "fps": 12, "loop": false,
+      "ms": [90, 70, 130],
       "frames": [
         [{"shift": {"dx": 0, "dy": 4}},
          {"shift": {"part": "hip_f", "dx": 3, "dy": -3}},
@@ -296,11 +333,17 @@
          {"shift": {"part": "hip_f", "dx": 3, "dy": -5}},
          {"shift": {"part": "knee_f", "dx": 5, "dy": -9}},
          {"shift": {"part": "foot_f", "dx": 2, "dy": -6}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "knee_f", "w": 16, "h": 16, "kind": "пуск"}],
+        []
       ]
     },
 
     "throw": {
       "group": "атака", "fps": 10, "loop": false,
+      "ms": [100, 90, 170],
       "frames": [
         [{"shift": {"dx": -2, "dy": 0}},
          {"aim": {"side": "b", "d": [2, 4], "bend": 1.0}},
@@ -313,11 +356,18 @@
          {"aim": {"side": "b", "d": [16, -4], "bend": 1.0}},
          {"aim": {"side": "f", "d": [18, -6], "bend": 1.0}},
          {"shift": {"part": "knee_f", "dx": 3, "dy": 3}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "fist_f", "w": 18, "h": 16, "kind": "удар"}],
+        [{"part": "fist_f", "w": 20, "h": 18, "kind": "удар"}],
+        []
       ]
     },
 
     "punch": {
       "group": "атака", "fps": 12, "loop": false,
+      "ms": [85, 65, 130],
       "frames": [
         [{"aim": {"side": "f", "d": [-19, 29], "bend": -1.0}},
          {"shift": {"part": "fist_b", "dx": -8, "dy": -2}},
@@ -329,11 +379,17 @@
          {"step": {"side": "f", "d": [5, 0], "bend": 1.0}}],
         [{"shift": {"dx": 2, "dy": 0}},
          {"aim": {"side": "f", "d": [19, 15], "bend": 1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "fist_f", "w": 18, "h": 16, "kind": "пуск"}],
+        [{"part": "fist_f", "w": 16, "h": 14, "kind": "удар"}]
       ]
     },
 
     "kick": {
       "group": "атака", "fps": 11, "loop": false,
+      "ms": [0, 0, 0],
       "frames": [
         [{"shift": {"dx": -2, "dy": 0}},
          {"step": {"side": "f", "d": [3, -24], "bend": 1.0}},
@@ -347,11 +403,17 @@
          {"aim": {"side": "b", "d": [-6, 19], "bend": 1.0}}],
         [{"shift": {"dx": -1, "dy": 0}},
          {"step": {"side": "f", "d": [3, -14], "bend": 1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "foot_f", "w": 18, "h": 18, "kind": "пуск"}],
+        [{"part": "foot_f", "w": 14, "h": 14, "kind": "удар"}]
       ]
     },
 
     "super": {
       "group": "атака", "fps": 10, "loop": false,
+      "ms": [120, 75, 70, 180],
       "frames": [
         [{"shift": {"dx": -3, "dy": 0}},
          {"aim": {"side": "f", "d": [-17, 29], "bend": -1.0}},
@@ -369,6 +431,12 @@
         [{"shift": {"dx": 2, "dy": 0}},
          {"aim": {"side": "f", "d": [17, 13], "bend": 1.0}},
          {"aim": {"side": "b", "d": [0, 21], "bend": 1.0}}]
+      ],
+      "hits": [
+        [],
+        [{"part": "fist_f", "w": 18, "h": 18, "kind": "удар"}],
+        [{"part": "fist_f", "w": 22, "h": 20, "kind": "удар"}],
+        []
       ]
     },
 

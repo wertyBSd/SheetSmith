@@ -210,6 +210,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._preview(payload)
             if path == "/api/measure":
                 return self._measure(payload)
+            if path == "/api/combat":
+                return self._combat(payload)
             if path == "/api/jobs":
                 return self._create_job(payload)
             if path == "/api/outfit":
@@ -246,6 +248,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def _measure(self, payload):
         self._json(self.server.service.measure(build_spec(payload)))
+
+    def _combat(self, payload):
+        """Тайминги и зоны попадания — целиком по движению.
+
+        Отдельный запрос, а не поле в /api/preview, потому что зоны нужны
+        редактору один раз на движение, а превью перерисовывается на каждый
+        чих слайдера. Считается на сервере из того же движка, что и картинка,
+        поэтому зона и пиксель не могут разойтись.
+        """
+        spec = build_spec(payload)
+        names = chosen_anims(payload.get("anims")) or ["idle"]
+        self._json({"character": spec.id, "frame": {"w": G.FW, "h": G.FH},
+                    "anims": {name: G.anim_timing(name, spec=spec)
+                              for name in names}})
 
     def _create_job(self, payload):
         kind = payload.get("kind", "sheet")
