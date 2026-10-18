@@ -15,8 +15,8 @@ import zlib
 
 # --- PNG -------------------------------------------------------------------
 
-def write_png(path, width, height, rows):
-    """rows: список height списков width кортежей (r, g, b, a)."""
+def png_bytes(width, height, rows):
+    """PNG как bytes: rows — список height списков width кортежей (r, g, b, a)."""
     raw = bytearray()
     for row in rows:
         raw.append(0)  # filter type 0 (None)
@@ -32,8 +32,13 @@ def write_png(path, width, height, rows):
     png += chunk(b"IHDR", ihdr)
     png += chunk(b"IDAT", zlib.compress(bytes(raw), 9))
     png += chunk(b"IEND", b"")
+    return png
+
+
+def write_png(path, width, height, rows):
+    """Та же кодировка, что в png_bytes, но сразу в файл."""
     with open(path, "wb") as fh:
-        fh.write(png)
+        fh.write(png_bytes(width, height, rows))
 
 
 # --- Палитра ---------------------------------------------------------------
@@ -100,6 +105,10 @@ class Canvas:
 
     def save(self, path):
         write_png(path, self.w, self.h, self.px)
+
+    def to_png_bytes(self):
+        """PNG в памяти — для отдачи по HTTP без записи на диск."""
+        return png_bytes(self.w, self.h, self.px)
 
     def scaled(self, k):
         """Целочисленное увеличение (для превью/контактных листов)."""
